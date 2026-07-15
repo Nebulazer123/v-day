@@ -1,107 +1,53 @@
-# Valentine's Day Interactive Page
+# LAINIE.EXE — a mostly-troll arcade for Lainie 🕹️🦆
 
-A fun, interactive Valentine's Day page where the "Yes" button grows bigger every time they click "No" — with falling hearts, cute GIFs, music, and playful toast messages. Built with pure HTML, CSS, and JavaScript.
+A single-page retro arcade that pretends to malfunction with love. Built for Lainie, from
+Corbin. Funny for ~9 minutes, sincere for 10 seconds.
 
-**Live demo:** [sahilgogna.github.io/v-day](https://sahilgogna.github.io/v-day)
+## The ride (beat-sheet — so you know what she's walking into)
 
+1. **The Gatekeeper** — "IS THIS LAINIE?" The **YES** button grows every time she taps it;
+   the **no** button guilt-trips her, shrinks, then teleports around so it's uncatchable
+   (give up 10 times and it surrenders and becomes a second YES).
+2. **love.exe** — a fake install bar that runs *backwards* (to −3%), then a cascade of fake
+   error popups ("4,000 photos of Corbin found on this device. This is a normal amount.").
+3. **The Impossible Quiz** — "How well do you know us?" Every answer is secretly right; she
+   graduates at **200%**. Includes the "LOADING LAINIE'S TRUE FORM…" grandma reveal.
+4. **The Escape Arcade** — four mini-games, each a different classic:
+   - **Escape Lincoln** (platformer out of town, Bentley trotting behind)
+   - **Boba & Ramen Fishing** (rare secret-duck catch)
+   - **Bentley's Errands** (village with Cole who won't stop talking + Hayden who invoices you)
+   - **Twilight Fantasy → Team Corbin** (she gets her Edward moment… then werewolf-Corbin
+     handles it)
+5. **The gotcha** — the cabinet powers down, and one real photo + one honest sentence land.
 
----
+Woven throughout: the ankh tattoo, the secret ducks, the C7-to-the-dock night, ramen + boba,
+escaping Lincoln, and a Konami-code duck stampede easter egg.
 
-## Want to Use This to Impress Your GF/Wife?
+## Tech
 
-You've got three options — pick whatever works for you.
+Vanilla HTML/CSS/JS + `<canvas>`. No build step, no framework. Self-contained (only external
+request is Google Fonts). Faces are real (pixelated); everyone else is hand-drawn pixel art.
+Sound effects are synthesized; music bed is the Glue Song.
 
----
+- `index.html` — shell + font/script load order
+- `css/style.css` — the whole "Midnight Drive CRT" design system
+- `js/core.js` — engine (router, audio, state, arcade registry)
+- `js/shell.js` — starfield, cursor trail, HUD, toasts, confetti, duck mode
+- `js/gate.js`, `js/loading.js`, `js/quiz.js` — the troll gauntlet
+- `js/arcade.js` + `js/games/level{1,2,3,4}_*.js` — the arcade + levels
+- `js/finale.js` — the gotcha
+- `assets/` — photos, face sprites, synthesized SFX · `music/gluesong.mp3`
+- `design/DESIGN_SPEC.md` — the full creative spec everything was built from
 
-### Option 1: Just Send the Link
+## Deploy
 
-No setup needed. Just send this link:
+Static — deploys anywhere. This repo is set up for **Vercel** (`vercel.json` adds a
+`noindex` header + robots.txt so the link stays unlisted). Push the branch, import to Vercel,
+done — or use the Vercel CLI. Send her the link. Best opened on a phone.
 
-```
-https://sahilgogna.github.io/v-day
-```
+## Undocumented
 
-That's it. Done. You're welcome.
+- `?skipto=finale` (or `gate`/`loading`/`quiz`/`arcadehub`) jumps straight to a screen.
+- Konami code (↑↑↓↓←→←→BA), or tap the ♥ logo 7×, for DUCK MODE.
 
----
-
-### Option 2: Fork It and Make It Yours
-
-Want your own version you can customize? Follow these steps:
-
-#### 1. Fork the Repo
-- Go to [github.com/SahilGogna/v-day](https://github.com/SahilGogna/v-day)
-- Click the **Fork** button in the top-right corner
-- This creates a copy of the repo under your GitHub account
-
-#### 2. Enable GitHub Pages
-- In your forked repo, go to **Settings** (the gear icon tab)
-- In the left sidebar, click **Pages**
-- Under **Source**, select **"Deploy from a branch"**
-- Under **Branch**, select **`main`** and **`/ (root)`**
-- Click **Save**
-
-#### 3. Wait ~2 Minutes
-- GitHub will build and deploy your site
-- Your site will be live at:
-  ```
-  https://yourusername.github.io/v-day
-  ```
-  (Replace `yourusername` with your actual GitHub username)
-
-#### 4. Personalize It
-- Edit `index.html` to change the question, title, or GIF
-- Edit `yes.html` to change the celebration page
-- Edit `script.js` to tweak the toast messages, button behavior, or GIF changes
-- Edit `style.css` to change colors, fonts, or animations
-- Swap out the music file in the `music/` folder with your own song
-
-> **Tip:** You can edit files directly on GitHub by clicking on a file and hitting the pencil (edit) icon. No need to clone anything locally if you just want quick changes.
-
----
-
-### Option 3: Vibe Code Your Own From Scratch
-
-Want something completely unique? Use AI to build it.
-
-#### 1. Open Antigravity
-- Google **"anti gravity google"** or go to [antigravity.dev](https://www.antigravity.dev)
-- It has **Sonnet 4.6** built right in — no need to go anywhere else
-
-#### 2. Describe What You Want
-- Tell it exactly what you're imagining. Some ideas:
-  - Falling hearts animation with a love letter reveal
-  - Interactive story where they choose their adventure
-  - A countdown to Valentine's Day with daily messages
-  - A quiz about your relationship
-  - Whatever your heart desires — literally
-
-#### 3. Get the Code
-- Antigravity will generate the full HTML, CSS, and JavaScript for you
-- Copy the code into files on your computer
-
-#### 4. Deploy It
-- Create a new GitHub repository
-- Push your code to it
-- Enable GitHub Pages the same way as **Option 2** (Settings → Pages → Deploy from branch → main → root → Save)
-- Your custom creation goes live in ~2 minutes
-
----
-
-## Project Structure
-
-```
-v-day/
-├── index.html       # Main page — "Will you be my Valentine?"
-├── yes.html         # Celebration page after they say Yes
-├── script.js        # Main page logic (button growth, GIF swaps, toasts)
-├── yes-script.js    # Celebration page animations
-├── style.css        # All the styling and animations
-└── music/           # Background music
-```
-
----
-
-## License
-
-Do whatever you want with it. Make someone smile.
+_© corbin & the ducks · est. august 2023 · lincoln survivors club, members: 2 (+1 dog)_
