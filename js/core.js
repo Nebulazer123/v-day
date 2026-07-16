@@ -65,6 +65,9 @@
     register(id, el) {
       el.classList.add('screen');
       el.dataset.screen = id;
+      // inline display:none wins over any module-injected `.foo{display:flex}`
+      // (injected <style> blocks load after the linked stylesheet, same specificity)
+      el.style.display = 'none';
       if (!el.parentNode) this.root().appendChild(el);
       screens[id] = el;
       return el;
@@ -88,7 +91,7 @@
           if (prev._onHide) prev._onHide();
         }, opts.instant ? 0 : 380);
       }
-      next.style.display = '';
+      next.style.display = 'flex';
       // force reflow so transition plays
       void next.offsetWidth;
       next.classList.add('screen--active');
