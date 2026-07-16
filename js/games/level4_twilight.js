@@ -29,7 +29,8 @@
       .l4__canvas{ width:100%; height:100%; display:block; image-rendering:pixelated; }
       .l4__dialogue{ position:absolute; left:0; right:0; bottom:0; min-height:34%; z-index:3;
         background:rgba(8,10,20,0.92); border-top:var(--border-pixel);
-        padding:var(--space-2) var(--space-3); box-sizing:border-box; display:flex; flex-direction:column; gap:8px; }
+        padding:var(--space-2) var(--space-3); box-sizing:border-box; display:flex; flex-direction:column; gap:8px;
+        user-select:none; -webkit-user-select:none; cursor:pointer; }
       .l4__speaker{ font-family:var(--font-arcade); font-size:11px; color:var(--taro-purple); }
       .l4__text{ font-family:var(--font-body); font-weight:700; font-size:15px; color:var(--edward-pale, #DDE7F0); line-height:1.4; min-height:2.6em; }
       .l4__choices{ display:flex; flex-direction:column; gap:6px; }
@@ -47,7 +48,9 @@
         background:var(--heart-neon); color:var(--star-white); border:var(--border-pixel);
         box-shadow:var(--shadow-btn); touch-action:manipulation; user-select:none; -webkit-user-select:none; }
       .l4__mashbtn:active{ transform:translate(3px,3px); box-shadow:var(--shadow-btn-press); }
-      .l4__tap{ position:absolute; inset:0; z-index:1; cursor:pointer; touch-action:manipulation; }
+      .l4__hint{ font-family:var(--font-system); font-size:14px; color:var(--star-dim);
+        text-align:right; visibility:hidden; animation:l4hintblink 900ms steps(1) infinite; }
+      @keyframes l4hintblink{ 0%,60%{opacity:0.85;} 60.01%,100%{opacity:0.25;} }
     `;
     document.head.appendChild(s);
   }
@@ -117,10 +120,9 @@
     const speaker = U.el('div', 'l4__speaker');
     const textEl = U.el('div', 'l4__text');
     const choices = U.el('div', 'l4__choices');
-    dlg.appendChild(speaker); dlg.appendChild(textEl); dlg.appendChild(choices);
+    const hint = U.el('div', 'l4__hint', 'tap to continue ▸');
+    dlg.appendChild(speaker); dlg.appendChild(textEl); dlg.appendChild(choices); dlg.appendChild(hint);
     stage.appendChild(dlg);
-    const tapCatcher = U.el('div', 'l4__tap');
-    stage.appendChild(tapCatcher);
 
     function spawnSparkles(n, x, y, spread) {
       for (let i = 0; i < n; i++) sparkles.push({ x: x + U.rand(-spread, spread), y: y + U.rand(-spread, spread), life: U.rand(0.8, 2), t: 0, rot: Math.random() * Math.PI });
@@ -131,7 +133,7 @@
       textEl.textContent = '';
     }
     function finishTyping() {
-      if (typing && !typing.done) { textEl.textContent = typing.str; typing.done = true; if (typing.cb) typing.cb(); }
+      if (typing && !typing.done) { textEl.textContent = typing.str; typing.done = true; if (typing.cb) typing.cb(); if (phase === 'vn') hint.style.visibility = 'visible'; }
     }
 
     function showNode() {
@@ -147,18 +149,19 @@
         idx++; showNode(); return;
       }
       if (node.choice) {
-        tapCatcher.style.pointerEvents = 'none'; // buttons must win the click, not the full-stage tap layer
+        hint.style.visibility = 'hidden';
         speaker.textContent = 'LAINIE';
         textEl.textContent = '';
         node.choice.forEach((label) => {
           const b = U.el('button', 'l4__choice', label);
           b.type = 'button';
-          b.addEventListener('click', (e) => { e.stopPropagation(); App.audio.play('click'); idx++; showNode(); });
+          const pick = (e) => { e.stopPropagation(); e.preventDefault(); App.audio.play('click'); idx++; showNode(); };
+          b.addEventListener('click', pick);
           choices.appendChild(b);
         });
         return;
       }
-      tapCatcher.style.pointerEvents = '';
+      hint.style.visibility = 'hidden'; // shown again once the line finishes typing
       // line
       speaker.textContent = node.s;
       speaker.style.color = node.s.indexOf('CORBIN') >= 0 ? C.heart : C.purple;
@@ -170,16 +173,16 @@
     function advance() {
       if (phase !== 'vn') return;
       const node = SCRIPT[idx];
-      if (node && node.choice) return; // must pick
-      if (typing && !typing.done) { finishTyping(); return; }
+      if (node && node.choice) return;        // must pick a choice button
+      if (typing && !typing.done) { finishTyping(); return; } // first tap completes the line
       idx++; showNode();
     }
-    tapCatcher.addEventListener('click', advance);
+    // advance on a tap ANYWHERE on the stage (choices call stopPropagation so they win their own taps)
+    stage.addEventListener('click', advance);
 
     function startFight() {
       phase = 'fight';
       dlg.style.display = 'none';
-      tapCatcher.style.display = 'none';
       // mash UI
       const label = U.el('div', 'l4__mashlabel', 'MASH! — TEAM CORBIN');
       const bar = U.el('div', 'l4__mashbar');
@@ -260,11 +263,10 @@
       bgT += dt;
       // typing
       if (typing && !typing.done) {
-        typing.i += dt * 42; // ~42 chars/sec
+        typing.i += dt * 75; // ~75 chars/sec (snappy)
         const n = Math.floor(typing.i);
         textEl.textContent = typing.str.slice(0, n);
-        if (n % 3 === 0) { /* subtle tick */ }
-        if (n >= typing.str.length) { typing.done = true; if (typing.cb) typing.cb(); }
+        if (n >= typing.str.length) { typing.done = true; if (typing.cb) typing.cb(); if (phase === 'vn') hint.style.visibility = 'visible'; }
       }
       // wolf entrance
       if (werewolf && wolfX < VVW * 0.30) wolfX = Math.min(VVW * 0.30, wolfX + dt * 260);
