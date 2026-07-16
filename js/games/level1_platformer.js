@@ -21,7 +21,7 @@
   const GRAVITY = 1600;
   const JUMP_V = -560;
   const MOVE_SPEED = 150;
-  const TIME_LIMIT = 90; // seconds, hard safety cap (level is tuned to finish well under this)
+  const TIME_LIMIT = 55; // seconds — now a real pressure clock (track is longer + denser)
 
   let styleInjected = false;
   function injectStyle() {
@@ -69,32 +69,41 @@
 
   function buildWorld() {
     return {
-      trackLength: 2650,
+      trackLength: 3350,
+      // denser + tighter course, two moving tractors, a couple of double-jump combos
       obstacles: [
-        { type: 'corn', x: 380, w: 50, h: 34 },
-        { type: 'truck', x: 760, w: 46, h: 30 },
-        { type: 'corn', x: 1120, w: 50, h: 34 },
-        { type: 'tractor', x: 1500, baseX: 1500, w: 70, h: 34 },
-        { type: 'corn', x: 1900, w: 50, h: 34 },
-        { type: 'truck', x: 2260, w: 46, h: 30 },
+        { type: 'corn', x: 300, w: 50, h: 34 },
+        { type: 'truck', x: 560, w: 46, h: 30 },
+        { type: 'corn', x: 780, w: 50, h: 40 },
+        { type: 'tractor', x: 1050, baseX: 1050, w: 70, h: 34, amp: 34, spd: 1.1 },
+        { type: 'corn', x: 1300, w: 50, h: 34 },
+        { type: 'corn', x: 1440, w: 50, h: 44 },       // tight double
+        { type: 'truck', x: 1720, w: 46, h: 30 },
+        { type: 'tractor', x: 1980, baseX: 1980, w: 70, h: 34, amp: 44, spd: 0.8 },
+        { type: 'corn', x: 2240, w: 50, h: 40 },
+        { type: 'truck', x: 2420, w: 46, h: 34 },       // tight
+        { type: 'corn', x: 2680, w: 50, h: 34 },
+        { type: 'tractor', x: 2960, baseX: 2960, w: 70, h: 34, amp: 30, spd: 1.4 },
       ],
       pickups: [
-        { type: 'boba', x: 260, y0: 196, val: 10, collected: false },
-        { type: 'ramen', x: 640, y0: 196, val: 25, collected: false },
-        { type: 'boba', x: 1000, y0: 196, val: 10, collected: false },
-        { type: 'heart', x: 1300, y0: 186, val: 50, collected: false },
-        { type: 'boba', x: 2050, y0: 196, val: 10, collected: false },
-        { type: 'ramen', x: 2380, y0: 196, val: 25, collected: false },
+        { type: 'boba', x: 230, y0: 196, val: 10, collected: false },
+        { type: 'ramen', x: 660, y0: 176, val: 25, collected: false },
+        { type: 'boba', x: 1180, y0: 196, val: 10, collected: false },
+        { type: 'heart', x: 1580, y0: 176, val: 50, collected: false },
+        { type: 'boba', x: 2120, y0: 196, val: 10, collected: false },
+        { type: 'ramen', x: 2560, y0: 176, val: 25, collected: false },
+        { type: 'heart', x: 3120, y0: 186, val: 50, collected: false },
       ],
-      duck: { x: 1535, y: 176, collected: false },
+      duck: { x: 1015, y: 176, collected: false },
       signposts: [
         { x: 120, text: 'LINCOLN — POP. small' },
-        { x: 560, text: 'NO BUBBLE TEA next 1,000,000 mi' },
-        { x: 1020, text: 'NOTHING AHEAD (still)' },
-        { x: 1780, text: 'SERIOUSLY WHY ARE YOU STILL HERE' },
-        { x: 2380, text: '→ ANYWHERE ELSE' },
+        { x: 480, text: 'NO BUBBLE TEA next 1,000,000 mi' },
+        { x: 900, text: 'NOTHING AHEAD (still)' },
+        { x: 1620, text: 'SERIOUSLY WHY ARE YOU STILL HERE' },
+        { x: 2320, text: 'almost out. do NOT trip now' },
+        { x: 3080, text: '→ ANYWHERE ELSE' },
       ],
-      flag: { x: 2560 },
+      flag: { x: 3260 },
     };
   }
 
@@ -284,7 +293,7 @@
 
       if (!finished && !winSeq) {
         for (const o of world.obstacles) {
-          if (o.type === 'tractor') o.x = o.baseX + Math.sin(t / 1000 * 0.6) * 12;
+          if (o.type === 'tractor') o.x = o.baseX + Math.sin(t / 1000 * (o.spd || 0.6)) * (o.amp || 12);
           const ob = { x: o.x, y: GROUND_Y - o.h, w: o.w, h: o.h };
           if (aabb(player, ob)) { triggerLose(); return; }
         }

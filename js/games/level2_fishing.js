@@ -17,9 +17,9 @@
   faceImg.src = 'assets/sprites/lainie_face.png';
 
   const VVW = 480, VVH = 300;
-  const QUOTA = 6;
-  const TIME_LIMIT = 70; // seconds
-  const BITE_WINDOW = 0.7; // seconds to react
+  const QUOTA = 8;
+  const TIME_LIMIT = 55; // seconds
+  const BITE_WINDOW = 0.45; // seconds to react — snappy
 
   let styleInjected = false;
   function injectStyle() {
@@ -65,9 +65,9 @@
 
   function rollCatch() {
     const r = Math.random();
-    if (r < 0.40) return { type: 'boba', pts: 10 };
-    if (r < 0.70) return { type: 'ramen', pts: 25 };
-    if (r < 0.90) return { type: 'boot', pts: 0 };
+    if (r < 0.34) return { type: 'boba', pts: 10 };
+    if (r < 0.58) return { type: 'ramen', pts: 25 };
+    if (r < 0.92) return { type: 'boot', pts: 0 };  // 34% junk now — dodge the boots
     return { type: 'duck', pts: 100 };
   }
 

@@ -13,6 +13,13 @@
 
   const VVW = 480, VVH = 300;
 
+  // ---- boss-fight tuning (hard + losable) ----
+  const EDWARD_HP   = 340;   // total HP to burn down
+  const FIGHT_TIME  = 20;    // seconds before you lose
+  const EDWARD_REGEN = 16;   // HP/sec Edward heals — you must OUT-mash it
+  const RAGE_PER_MASH = 0.075;
+  const RAGE_DRAIN  = 0.45;  // ~6 taps/sec sustains the 1.9x rage bonus
+
   let styleInjected = false;
   function injectStyle() {
     if (styleInjected) return;
@@ -113,7 +120,8 @@
     let phase = 'vn';              // vn | fight | finish
     let idx = 0;
     let typing = null;
-    let mash = 0, hp = 108, poseText = '', poseTimer = 0, dmgPops = [];
+    let mash = 0, hp = EDWARD_HP, poseText = '', poseTimer = 0, dmgPops = [];
+    let fightTimer = FIGHT_TIME, rage = 0, fightEls = null, flashHeal = 0;
 
     // dialogue DOM
     const dlg = U.el('div', 'l4__dialogue');
@@ -183,12 +191,13 @@
     function startFight() {
       phase = 'fight';
       dlg.style.display = 'none';
+      hp = EDWARD_HP; fightTimer = FIGHT_TIME; rage = 0;
       // mash UI
-      const label = U.el('div', 'l4__mashlabel', 'MASH! — TEAM CORBIN');
+      const label = U.el('div', 'l4__mashlabel', 'RAGE — keep it up for 1.9× damage');
       const bar = U.el('div', 'l4__mashbar');
       const fill = U.el('div', 'l4__mashfill');
       bar.appendChild(fill); stage.appendChild(label); stage.appendChild(bar);
-      const mashBtn = U.el('button', 'l4__mashbtn', 'MASH  TEAM CORBIN 🐺');
+      const mashBtn = U.el('button', 'l4__mashbtn', 'MASH!  TEAM CORBIN 🐺');
       mashBtn.type = 'button';
       wrap.appendChild(mashBtn);
       poseTimer = 1.4; poseText = '';
@@ -196,32 +205,49 @@
         if (over || phase !== 'fight') return;
         App.audio.play('stomp');
         wolfLunge = 1;
-        let crit = Math.random() < 0.05;
-        let dmg = crit ? 108 : U.randInt(10, 26);
+        rage = Math.min(1, rage + RAGE_PER_MASH);
+        const boosted = rage > 0.6;
+        const crit = Math.random() < 0.06;
+        let dmg = U.randInt(9, 17);
+        if (boosted) dmg = Math.round(dmg * 1.9);
+        if (crit) dmg = Math.round(dmg * 2.2);
         hp = Math.max(0, hp - dmg);
-        mash = crit ? 1 : Math.min(1, mash + 0.06);
-        dmgPops.push({ x: edwardX + U.rand(-10, 10), y: edwardY, t: 0, txt: crit ? '-108!!' : '-' + dmg + '!', crit });
-        spawnSparkles(crit ? 20 : 6, edwardX, edwardY, 14);
-        fill.style.width = Math.round(mash * 100) + '%';
-        if (mash >= 1 || hp <= 0) { mash = 1; fill.style.width = '100%'; finish(label, bar, mashBtn); }
+        dmgPops.push({ x: edwardX + U.rand(-12, 12), y: edwardY, t: 0, txt: (crit ? 'CRIT -' : '-') + dmg + (crit ? '!!' : '!'), crit: crit || boosted });
+        spawnSparkles(crit ? 18 : 6, edwardX, edwardY, 14);
+        fill.style.width = Math.round(rage * 100) + '%';
+        fill.style.background = boosted ? 'var(--ramen-gold)' : 'var(--heart-neon)';
+        if (hp <= 0) finish();
       };
       mashBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); doMash(); });
       const onKey = (e) => { if (App.router.current !== 'arcadehub') return; if (phase === 'fight' && e.code === 'Space') { e.preventDefault(); doMash(); } };
       window.addEventListener('keydown', onKey);
       def._extraCleanup = () => window.removeEventListener('keydown', onKey);
-      def._fightEls = [label, bar, mashBtn];
+      fightEls = [label, bar, mashBtn, fill];
     }
 
-    function finish(label, bar, mashBtn) {
+    function removeFightEls() { if (fightEls) { fightEls.forEach((el) => el && el.remove && el.remove()); fightEls = null; } }
+
+    function finish() {
       if (phase === 'finish') return;
       phase = 'finish';
-      [label, bar, mashBtn].forEach((el) => el && el.remove());
+      removeFightEls();
       App.audio.play('fanfare-win');
       edwardYeet = { vx: 220, vy: -320, t: 0 };
       setTimeout(() => App.audio.play('sparkle'), 500);
       setTimeout(() => { if (!over) { over = true; api.win({ heading: 'FLAWLESS VICTORY — TEAM CORBIN', lines: [
         'Edward has been returned to the mist (politely). the fantasy has been upgraded to a guy who actually texts back.',
       ] }); } }, 2200);
+    }
+
+    function loseFight() {
+      if (phase !== 'fight' || over) return;
+      phase = 'lost'; over = true;
+      removeFightEls();
+      App.audio.play('gameover');
+      api.lose({ heading: 'EDWARD GOT AWAY', lines: [
+        'he sparkled at a reasonable distance and you let up. he escaped into the mist.',
+        'team corbin regroups. the corvette is still running. [RETRY]',
+      ] });
     }
 
     // ---- sprites ----
@@ -284,6 +310,16 @@
       if (phase === 'fight') {
         poseTimer -= dt;
         if (poseTimer <= 0) { poseText = U.pick(POSES); poseTimer = 2.2; }
+        // Edward heals if you slack — you must out-mash the regen
+        if (hp > 0) {
+          const before = hp;
+          hp = Math.min(EDWARD_HP, hp + EDWARD_REGEN * dt);
+          if (Math.floor(hp) > Math.floor(before)) flashHeal = 0.25;
+        }
+        if (flashHeal > 0) flashHeal -= dt;
+        rage = Math.max(0, rage - RAGE_DRAIN * dt);
+        fightTimer -= dt;
+        if (fightTimer <= 0 && hp > 0) { fightTimer = 0; loseFight(); }
       }
 
       // ---- render ----
@@ -302,13 +338,19 @@
       if (hp > 0 || edwardYeet) drawEdward(edwardX + (phase === 'fight' && wolfLunge > 0.5 ? 6 : 0), edwardY, edwardYeet);
       // wolf
       if (werewolf) drawWolf(wolfX + wolfLunge * 40, VVH * 0.34);
-      // fight HUD (canvas): HP text
+      // fight HUD (canvas): HP + timer
       if (phase === 'fight') {
         ctx.fillStyle = C.star; ctx.font = 'bold 12px monospace';
-        ctx.fillText('EDWARD — HP: ' + hp + ' (years)', 12, 20);
-        // hp bar
+        ctx.fillText('EDWARD — HP: ' + Math.ceil(hp) + ' (years)', 12, 20);
+        // hp bar (flashes when he heals)
         ctx.fillStyle = C.pearl; ctx.fillRect(12, 26, 180, 8);
-        ctx.fillStyle = C.heart; ctx.fillRect(12, 26, 180 * (hp / 108), 8);
+        ctx.fillStyle = flashHeal > 0 ? '#eef3f8' : C.pale; ctx.fillRect(12, 26, 180 * (hp / EDWARD_HP), 8);
+        // countdown timer, red under 6s
+        const tleft = Math.ceil(fightTimer);
+        ctx.textAlign = 'right'; ctx.font = 'bold 14px monospace';
+        ctx.fillStyle = tleft <= 6 ? C.heart : C.gold;
+        ctx.fillText('⏱ ' + tleft + 's', VVW - 12, 22);
+        ctx.textAlign = 'left';
         if (poseText) { ctx.fillStyle = C.purple; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(poseText, VVW / 2, VVH * 0.62); ctx.textAlign = 'left'; }
       }
       // finisher fading line
@@ -337,9 +379,10 @@
   const def = {
     title: 'TWILIGHT FANTASY',
     tagline: 'a forest. a mist. a suspiciously pale gentleman.',
-    controls: 'tap to advance · then MASH SPACE / MASH THE BUTTON',
+    controls: 'tap to advance · then MASH SPACE / MASH THE BUTTON — FAST',
     intro: { lines: [
       'Corbin is aware of this level. Corbin approved this level. Corbin wrote this level through gritted teeth.',
+      'WARNING: Edward heals if you slow down. beat the clock or he sparkles away. you CAN lose this one.',
     ] },
     mount,
     unmount() { if (def._cleanup) def._cleanup(); },
