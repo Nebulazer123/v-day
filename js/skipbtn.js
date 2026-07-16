@@ -8,6 +8,16 @@
   'use strict';
   if (!window.App) return;
 
+  // Only show the skip control for Corbin (dev), never on the shared link Lainie opens.
+  // Enable with ?dev in the URL (or on localhost). The setting sticks for the session.
+  try {
+    if (new URLSearchParams(location.search).has('dev')) sessionStorage.setItem('lainie_dev', '1');
+  } catch (e) {}
+  const isLocal = /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname);
+  let devOn = false;
+  try { devOn = isLocal || sessionStorage.getItem('lainie_dev') === '1'; } catch (e) { devOn = isLocal; }
+  if (!devOn) return; // hidden on the real shareable link
+
   const ORDER = ['gate', 'loading', 'quiz', 'arcadehub', 'finale'];
 
   const btn = document.createElement('button');
