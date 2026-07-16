@@ -27,7 +27,7 @@
       @keyframes l4shake{ 0%{transform:translate(0,0);} 25%{transform:translate(-8px,4px);}
         50%{transform:translate(8px,-4px);} 75%{transform:translate(-6px,6px);} 100%{transform:translate(0,0);} }
       .l4__canvas{ width:100%; height:100%; display:block; image-rendering:pixelated; }
-      .l4__dialogue{ position:absolute; left:0; right:0; bottom:0; min-height:34%;
+      .l4__dialogue{ position:absolute; left:0; right:0; bottom:0; min-height:34%; z-index:3;
         background:rgba(8,10,20,0.92); border-top:var(--border-pixel);
         padding:var(--space-2) var(--space-3); box-sizing:border-box; display:flex; flex-direction:column; gap:8px; }
       .l4__speaker{ font-family:var(--font-arcade); font-size:11px; color:var(--taro-purple); }
@@ -46,7 +46,7 @@
         background:var(--heart-neon); color:var(--star-white); border:var(--border-pixel);
         box-shadow:var(--shadow-btn); touch-action:manipulation; user-select:none; -webkit-user-select:none; }
       .l4__mashbtn:active{ transform:translate(3px,3px); box-shadow:var(--shadow-btn-press); }
-      .l4__tap{ position:absolute; inset:0; cursor:pointer; }
+      .l4__tap{ position:absolute; inset:0; z-index:1; cursor:pointer; }
     `;
     document.head.appendChild(s);
   }
@@ -146,6 +146,7 @@
         idx++; showNode(); return;
       }
       if (node.choice) {
+        tapCatcher.style.pointerEvents = 'none'; // buttons must win the click, not the full-stage tap layer
         speaker.textContent = 'LAINIE';
         textEl.textContent = '';
         node.choice.forEach((label) => {
@@ -156,6 +157,7 @@
         });
         return;
       }
+      tapCatcher.style.pointerEvents = '';
       // line
       speaker.textContent = node.s;
       speaker.style.color = node.s.indexOf('CORBIN') >= 0 ? C.heart : C.purple;
