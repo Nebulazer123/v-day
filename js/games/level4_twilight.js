@@ -35,7 +35,8 @@
       .l4__choices{ display:flex; flex-direction:column; gap:6px; }
       .l4__choice{ font-family:var(--font-body); font-weight:800; font-size:14px; text-align:left;
         background:var(--taro-purple); color:var(--boba-pearl); border:var(--border-pixel);
-        box-shadow:var(--shadow-btn); padding:8px 10px; cursor:pointer; }
+        box-shadow:var(--shadow-btn); padding:8px 10px; cursor:pointer;
+        touch-action:manipulation; user-select:none; -webkit-user-select:none; }
       .l4__choice:active{ transform:translate(3px,3px); box-shadow:var(--shadow-btn-press); }
       .l4__mashbar{ position:absolute; left:8%; right:8%; bottom:12px; height:22px;
         border:var(--border-pixel); background:var(--dock-water); }
@@ -46,7 +47,7 @@
         background:var(--heart-neon); color:var(--star-white); border:var(--border-pixel);
         box-shadow:var(--shadow-btn); touch-action:manipulation; user-select:none; -webkit-user-select:none; }
       .l4__mashbtn:active{ transform:translate(3px,3px); box-shadow:var(--shadow-btn-press); }
-      .l4__tap{ position:absolute; inset:0; z-index:1; cursor:pointer; }
+      .l4__tap{ position:absolute; inset:0; z-index:1; cursor:pointer; touch-action:manipulation; }
     `;
     document.head.appendChild(s);
   }
