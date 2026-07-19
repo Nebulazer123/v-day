@@ -71,6 +71,8 @@ export interface LevelDef {
   id: string;
   name: string;
   tagline: string;
+  /** persistent top-left objective line; use `\n` to split into steps */
+  objective?: string;
   skyGlow: number;
   fogDensity?: number;
   prims: Prim[];

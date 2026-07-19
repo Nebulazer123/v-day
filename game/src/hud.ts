@@ -34,6 +34,12 @@ const CSS = `
   font-weight: 800; font-size: 14px; opacity: 0; transition: opacity 0.2s;
   color: ${cssHex(PAL.crtGreen)}; }
 .dj-prompt.show { opacity: 1; }
+.dj-objective { position: absolute; top: max(58px, calc(env(safe-area-inset-top) + 46px));
+  left: 14px; max-width: 60vw; opacity: 0; transition: opacity 0.4s;
+  font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 12.5px;
+  line-height: 1.5; color: rgba(255,255,255,0.9); }
+.dj-objective.show { opacity: 1; }
+.dj-objective b { color: ${cssHex(PAL.ramenGold)}; }
 .dj-corner { position: absolute; right: 14px; top: max(12px, env(safe-area-inset-top));
   display: flex; gap: 8px; pointer-events: auto; }
 .dj-btn { background: rgba(11,16,38,0.55); backdrop-filter: blur(10px);
@@ -65,6 +71,7 @@ export class Hud {
   private chapter: HTMLDivElement;
   private toastEl: HTMLDivElement;
   private promptEl: HTMLDivElement;
+  private objectiveEl!: HTMLDivElement;
   private fadeEl: HTMLDivElement;
   private touchLayer: HTMLDivElement;
   private toastTimer = 0;
@@ -84,6 +91,7 @@ export class Hud {
         <div class="dj-card dj-pieces" data-r="pieces"></div>
       </div>
       <div class="dj-chapter" data-r="chapter"><div class="t"></div><div class="s"></div></div>
+      <div class="dj-objective" data-r="objective"></div>
       <div class="dj-card dj-toast" data-r="toast"></div>
       <div class="dj-prompt" data-r="prompt"></div>
       <div class="dj-corner">
@@ -101,6 +109,7 @@ export class Hud {
     this.chapter = q('chapter');
     this.toastEl = q('toast');
     this.promptEl = q('prompt');
+    this.objectiveEl = q('objective');
     this.fadeEl = q('fade');
     this.touchLayer = q('touch');
     q<HTMLButtonElement>('mute').addEventListener('click', () => this.onMute());
@@ -169,6 +178,19 @@ export class Hud {
       this.promptEl.classList.add('show');
     } else {
       this.promptEl.classList.remove('show');
+    }
+  }
+
+  /** persistent objective line, top-left under the stats. `\n` splits steps. */
+  objective(text: string | null): void {
+    if (text) {
+      this.objectiveEl.innerHTML = text
+        .split('\n')
+        .map((line) => `<div>${line}</div>`)
+        .join('');
+      this.objectiveEl.classList.add('show');
+    } else {
+      this.objectiveEl.classList.remove('show');
     }
   }
 

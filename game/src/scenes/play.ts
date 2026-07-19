@@ -83,6 +83,7 @@ export class PlayScene implements Scene {
   private snackCookie = 0;
   private secondWind = false;
   private hintsUsed = 0;
+  private warnedNoWeapon = false;
 
   constructor(protected ctx: GameContext, protected def: LevelDef, mods: string[] = []) {
     this.mods = new Set(mods);
@@ -159,6 +160,7 @@ export class PlayScene implements Scene {
     ctx.camera.snapTo(this.player.pos);
     ctx.hud.chapterCard(def.name, def.tagline);
     ctx.hud.setHearts(this.hearts, this.maxHearts);
+    ctx.hud.objective(def.objective ?? null);
     this.fx = new Fx(this.scene);
     void ctx.audio.play('levelstart', 0.5);
 
@@ -609,9 +611,13 @@ export class PlayScene implements Scene {
       } else {
         const r = this.im.interact(this.player);
         if (r) void this.ctx.audio.play('pop', 0.45);
+        if (r === 'dropped') {
+          const onPlate = this.im.plates.find((p) => Math.hypot(this.player.pos.x - p.pos.x, this.player.pos.z - p.pos.z) < p.snapR + 1.2);
+          if (onPlate) this.ctx.hud.toast(onPlate.exact ? 'ON THE SCALE — each side needs EXACTLY its number' : 'ON THE PLATE', 2.2);
+        }
       }
     }
-    this.im.update(dt, this.player, this.world);
+    this.im.update(dt, this.player, this.world, this.ctx.camera.cam);
 
     // weapons
     if (intents.cycle) {
@@ -620,6 +626,11 @@ export class PlayScene implements Scene {
     }
     if (intents.fire) {
       const fired = this.weapons.fire(this.player);
+      if (!fired && this.weapons.owned.length === 0 && !this.warnedNoWeapon) {
+        this.warnedNoWeapon = true;
+        this.ctx.hud.toast('NO WEAPON YET — they hide in SECRET ROOMS (walk into odd walls)', 3.4);
+        void this.ctx.audio.play('wrong', 0.4);
+      }
       if (fired === 'ball' || fired === 'boba') void this.ctx.audio.play('boing', 0.4);
       if (fired === 'ankh') void this.ctx.audio.play('sparkle', 0.5);
       if (fired === 'whistle') {
@@ -660,7 +671,15 @@ export class PlayScene implements Scene {
     const open = evaluate(this.def.logic ?? [], inputs);
     for (const g of this.im.gates) {
       const shouldOpen = open.has(g.id);
-      if (shouldOpen && !g.open) void this.ctx.audio.play('ding', 0.5);
+      if (shouldOpen && !g.open) {
+        void this.ctx.audio.play('ding', 0.5);
+        void this.ctx.audio.play('correct', 0.5);
+        this.ctx.camera.kick(0.2);
+        // tell the player what just happened so nothing feels invisible
+        if (g.isLift) this.ctx.hud.toast('BALANCED! THE LIFT IS RISING — RIDE IT UP', 3.2);
+        else if (g.needsKey) this.ctx.hud.toast('THE GATE OPENED — GO THROUGH', 2.6);
+        else this.ctx.hud.toast('SOMETHING OPENED NEARBY', 2.4);
+      }
       g.open = shouldOpen;
     }
 
@@ -854,5 +873,6 @@ export class PlayScene implements Scene {
   dispose(): void {
     removeEventListener('keydown', this.hintKey);
     this.ctx.hud.prompt(null);
+    this.ctx.hud.objective(null);
   }
 }

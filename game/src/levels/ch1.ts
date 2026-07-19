@@ -33,6 +33,9 @@ export function ch1(): LevelDef {
 
   // key shelf (west, high) + stair boxes toward rafter
   prims.push({ kind: 'box', pos: { x: -19.5, y: 2.85, z: 0 }, size: { x: 6, y: 0.4, z: 8 }, color: 0x2f3856 });
+  // walkway plank bridging the raised lift (x-11) to the key shelf (x-16.5),
+  // so once the lift is up it's a simple walk to the key — no precise jump
+  prims.push({ kind: 'box', pos: { x: -14, y: 2.55, z: 0 }, size: { x: 6.4, y: 0.3, z: 2.8 }, color: 0x39426e });
   // rafter beam across the gym at height 4.6
   prims.push({ kind: 'box', pos: { x: 0, y: 4.6, z: 0 }, size: { x: 40, y: 0.3, z: 1.2 }, color: 0x323b63 });
   // pounce-chain boxes: shelf → floating steps → rafter
@@ -51,6 +54,7 @@ export function ch1(): LevelDef {
     id: 'ch1',
     name: 'THE GYM',
     tagline: 'it started at the gym.',
+    objective: 'OBJECTIVE:\n<b>1.</b> carry dumbbells [E] onto BOTH scales — exactly 3 each\n<b>2.</b> ride the lift up, grab the KEY\n<b>3.</b> take the key to the pink GATE',
     skyGlow: PAL.ramenGold,
     fogDensity: 0.012,
     prims,
@@ -78,7 +82,7 @@ export function ch1(): LevelDef {
       { type: 'carry', id: 'd2', pos: { x: -7, y: 0, z: 1 }, kind: 'dumbbell', weight: 2 },
       { type: 'carry', id: 'd3', pos: { x: -17, y: 0, z: 9 }, kind: 'dumbbell', weight: 3 },
       { type: 'carry', id: 'd4', pos: { x: -5, y: 0, z: 7 }, kind: 'dumbbell', weight: 1 },
-      { type: 'sign', pos: { x: -14, y: 0, z: -9.5 }, lines: ['BALANCE.', 'both sides. exactly.'], fg: '#33FF88' },
+      { type: 'sign', pos: { x: -14, y: 0, z: -9.5 }, lines: ['BALANCE: 3 EACH SIDE', 'e.g. [3] and [1+2]'], fg: '#33FF88' },
 
       // lift to the key shelf
       { type: 'lift', id: 'lift1', pos: { x: -11, y: 0.2, z: 0 }, size: { x: 2.6, y: 0.4, z: 2.6 }, to: { x: -11, y: 2.8, z: 0 }, color: 0x39426e },

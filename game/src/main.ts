@@ -108,6 +108,7 @@ class Game {
           paused: this.paused,
           save: this.ctx.save.data,
         }),
+        scene: () => this.current,
         ctx: this.ctx,
       };
     }
