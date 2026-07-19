@@ -369,6 +369,7 @@ export class HubScene implements Scene {
       return;
     }
     const intents = this.ctx.input.poll();
+    this.ctx.camera.control(dt, intents.rotate, intents.zoom);
     this.sky.update(dt);
     this.exitCooldown = Math.max(0, this.exitCooldown - dt);
 
@@ -398,7 +399,7 @@ export class HubScene implements Scene {
       const pondUnlocked = this.ctx.save.data.secrets.pondzero || this.ctx.save.data.ducks.length >= 21;
       const pondPos = new THREE.Vector3(-(ROAD_HALF + 8), 0, DINER_Z - 10);
       if (pondUnlocked && this.player.pos.distanceTo(pondPos) < 5) {
-        this.ctx.hud.prompt('[E] POND ZERO (?)');
+        this.ctx.hud.prompt('[ENTER] POND ZERO (?)');
         if (intents.interact) {
           this.ctx.go('play', { id: 'pondzero' });
           return;
@@ -409,8 +410,8 @@ export class HubScene implements Scene {
       const distToCar = this.player.pos.distanceTo(this.car.rig.group.position);
       const dinerPos = new THREE.Vector3(-(ROAD_HALF + 8), 0, DINER_Z);
       const nearDiner = this.player.pos.distanceTo(dinerPos) < 6;
-      if (nearDiner) this.ctx.hud.prompt("[E] GRANDMA'S DINER (SHOP)");
-      else this.ctx.hud.prompt(distToCar < 3.2 ? '[E] TAKE THE CORVETTE' : null);
+      if (nearDiner) this.ctx.hud.prompt("[ENTER] GRANDMA'S DINER (SHOP)");
+      else this.ctx.hud.prompt(distToCar < 3.2 ? '[ENTER] TAKE THE CORVETTE' : null);
       if (nearDiner && intents.interact) {
         this.shopOpen = true;
         void this.ctx.audio.play('insertcoin', 0.5);
@@ -471,7 +472,7 @@ export class HubScene implements Scene {
       }
 
       // get out
-      this.ctx.hud.prompt(Math.abs(this.car.state.speed) < 1.5 ? '[E] HOP OUT' : null);
+      this.ctx.hud.prompt(Math.abs(this.car.state.speed) < 1.5 ? '[ENTER] HOP OUT' : null);
       if (intents.interact && Math.abs(this.car.state.speed) < 1.5) {
         this.mode = 'walk';
         this.player.rig.group.visible = true;

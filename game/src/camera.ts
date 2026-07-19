@@ -13,6 +13,9 @@ export class GameCamera {
   private curOffset = new THREE.Vector3(0, 6, -8);
   private curFov = 55;
   private nudgeYaw = 0;
+  private userYaw = 0;        // eased current player-rotation (radians)
+  private targetUserYaw = 0;  // snaps in 90° steps via A/D
+  private zoomMult = 1;       // 0.55 (close) .. 2.0 (far), W/S
   private shakeAmp = 0;
   private shakeT = 0;
   private lookTarget = new THREE.Vector3();
@@ -32,8 +35,15 @@ export class GameCamera {
   }
 
   snapTo(target: THREE.Vector3): void {
-    this.cam.position.copy(target).add(this.curOffset);
+    const rotated = this.curOffset.clone().applyAxisAngle(UP, this.userYaw).multiplyScalar(this.zoomMult);
+    this.cam.position.copy(target).add(rotated);
     this.lookTarget.copy(target);
+  }
+
+  /** player camera input: A/D snap-rotate 90°, W/S zoom. */
+  control(dt: number, rotate: number, zoom: number): void {
+    if (rotate) this.targetUserYaw += rotate * (Math.PI / 2);
+    if (zoom) this.zoomMult = THREE.MathUtils.clamp(this.zoomMult - zoom * 1.1 * dt, 0.55, 2.0);
   }
 
   update(dt: number, target: THREE.Vector3, vel: THREE.Vector3, nudge: number): void {
@@ -65,6 +75,7 @@ export class GameCamera {
     }
 
     this.nudgeYaw = THREE.MathUtils.damp(this.nudgeYaw, nudge * 0.5, 4, dt);
+    this.userYaw = THREE.MathUtils.damp(this.userYaw, this.targetUserYaw, 9, dt);
 
     const look = new THREE.Vector3(
       target.x + vel.x * lookAhead,
@@ -75,7 +86,7 @@ export class GameCamera {
     this.lookTarget.y = THREE.MathUtils.damp(this.lookTarget.y, look.y, 6, dt);
     this.lookTarget.z = THREE.MathUtils.damp(this.lookTarget.z, look.z, 6, dt);
 
-    const rotated = this.curOffset.clone().applyAxisAngle(UP, this.nudgeYaw);
+    const rotated = this.curOffset.clone().applyAxisAngle(UP, this.userYaw + this.nudgeYaw).multiplyScalar(this.zoomMult);
     const desired = target.clone().add(rotated);
     this.cam.position.x = THREE.MathUtils.damp(this.cam.position.x, desired.x, 5, dt);
     this.cam.position.y = THREE.MathUtils.damp(this.cam.position.y, desired.y, 5, dt);

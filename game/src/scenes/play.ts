@@ -526,6 +526,7 @@ export class PlayScene implements Scene {
       return;
     }
     const intents = this.ctx.input.poll();
+    this.ctx.camera.control(dt, intents.rotate, intents.zoom);
     this.sky.update(dt);
     this.runTime += dt;
     this.iframes = Math.max(0, this.iframes - dt);
@@ -564,12 +565,12 @@ export class PlayScene implements Scene {
     const nearC = this.im.nearest(this.player);
     const carryingCoin = this.im.carrying?.kind === 'coin';
 
-    if (nearZone) this.ctx.hud.prompt(`[E] ${nearZone.label}`);
-    else if (nearSlot && carryingCoin) this.ctx.hud.prompt('[E] INSERT COIN');
-    else if (nearRotor) this.ctx.hud.prompt('[E] ROTATE');
-    else if (nearValve) this.ctx.hud.prompt('[E] TURN VALVE');
-    else if (this.im.carrying) this.ctx.hud.prompt('[E] PUT DOWN');
-    else if (nearC) this.ctx.hud.prompt('[E] PICK UP');
+    if (nearZone) this.ctx.hud.prompt(`[ENTER] ${nearZone.label}`);
+    else if (nearSlot && carryingCoin) this.ctx.hud.prompt('[ENTER] INSERT COIN');
+    else if (nearRotor) this.ctx.hud.prompt('[ENTER] ROTATE');
+    else if (nearValve) this.ctx.hud.prompt('[ENTER] TURN VALVE');
+    else if (this.im.carrying) this.ctx.hud.prompt('[ENTER] PUT DOWN');
+    else if (nearC) this.ctx.hud.prompt('[ENTER] PICK UP');
     else this.ctx.hud.prompt(null);
 
     if (intents.interact) {

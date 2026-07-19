@@ -11,19 +11,23 @@ export interface Intents {
   interact: boolean;    // edge
   fire: boolean;        // edge
   cycle: number;        // -1/0/1 weapon cycle edge
-  camNudge: number;     // -1..1 desired yaw nudge
+  camNudge: number;     // -1..1 desired yaw nudge (mouse drag)
+  rotate: number;       // -1/0/1 camera 90° rotate edge (A/D)
+  zoom: number;         // -1/0/1 camera zoom held (W in / S out)
   pause: boolean;       // edge
   any: boolean;         // any input edge this frame (menus)
 }
 
+// Movement is on the ARROW keys. A/D rotate the camera, W/S zoom, Enter
+// interacts. (Desktop scheme chosen by the player.)
 const KEYMAP: Record<string, keyof KeyState> = {
-  KeyW: 'up', ArrowUp: 'up',
-  KeyS: 'down', ArrowDown: 'down',
-  KeyA: 'left', ArrowLeft: 'left',
-  KeyD: 'right', ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
   Space: 'jump',
   ShiftLeft: 'pounce', ShiftRight: 'pounce',
-  KeyE: 'interact', Enter: 'interact',
+  Enter: 'interact', NumpadEnter: 'interact',
   KeyF: 'fire',
   Escape: 'pause',
 };
@@ -40,6 +44,8 @@ export class Input {
   };
   private edges = new Set<string>();
   private wheelDelta = 0;
+  private zoomIn = false;
+  private zoomOut = false;
   private mouseDragX = 0;
   private dragging = false;
   private lastX = 0;
@@ -53,21 +59,30 @@ export class Input {
   constructor(private el: HTMLElement) {
     this.isTouch = matchMedia('(pointer: coarse)').matches;
     addEventListener('keydown', (e) => {
+      // camera controls — not character movement
+      if (e.code === 'KeyA') { if (!e.repeat) this.edges.add('rotL'); return; }
+      if (e.code === 'KeyD') { if (!e.repeat) this.edges.add('rotR'); return; }
+      if (e.code === 'KeyW') { this.zoomIn = true; return; }
+      if (e.code === 'KeyS') { this.zoomOut = true; return; }
       const k = KEYMAP[e.code];
       if (!k) {
         if (/^Digit[1-4]$/.test(e.code)) this.edges.add('slot' + e.code.slice(5));
         return;
       }
-      if (e.code === 'Space') e.preventDefault();
+      // stop the browser scrolling / activating on gameplay keys
+      if (e.code === 'Space' || e.code === 'Enter' || e.code.startsWith('Arrow')) e.preventDefault();
       if (!this.keys[k]) this.edges.add(k);
       this.keys[k] = true;
     });
     addEventListener('keyup', (e) => {
+      if (e.code === 'KeyW') this.zoomIn = false;
+      if (e.code === 'KeyS') this.zoomOut = false;
       const k = KEYMAP[e.code];
       if (k) this.keys[k] = false;
     });
     addEventListener('blur', () => {
       (Object.keys(this.keys) as (keyof KeyState)[]).forEach((k) => (this.keys[k] = false));
+      this.zoomIn = this.zoomOut = false;
     });
 
     el.addEventListener('pointerdown', (e) => this.onDown(e));
@@ -175,6 +190,8 @@ export class Input {
       fire: this.edges.has('fire'),
       cycle: this.wheelDelta === 0 ? 0 : Math.sign(this.wheelDelta),
       camNudge: Math.max(-1, Math.min(1, this.mouseDragX * 4)),
+      rotate: this.edges.has('rotL') ? -1 : this.edges.has('rotR') ? 1 : 0,
+      zoom: (this.zoomIn ? 1 : 0) - (this.zoomOut ? 1 : 0),
       pause: this.edges.has('pause'),
       any: this.edges.size > 0,
     };

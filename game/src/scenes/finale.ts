@@ -176,12 +176,13 @@ export class FinaleScene implements Scene {
     if (this.assembled) return;
 
     const intents = this.ctx.input.poll();
+    this.ctx.camera.control(dt, intents.rotate, intents.zoom);
     this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
     if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3);
 
     const nearEasel = this.player.pos.z > 30 && this.player.pos.distanceTo(this.easelPos) < 9;
     const pieces = this.ctx.save.data.pieces.length;
-    this.ctx.hud.prompt(nearEasel ? `[E] ASSEMBLE THE LETTER (${pieces}/7 PIECES)` : null);
+    this.ctx.hud.prompt(nearEasel ? `[ENTER] ASSEMBLE THE LETTER (${pieces}/7 PIECES)` : null);
     if (nearEasel && intents.interact) {
       if (pieces < 6) {
         this.ctx.hud.toast(`SOME PIECES ARE STILL HIDING. (${pieces}/7 — check the chapters)`, 3.2);

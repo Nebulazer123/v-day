@@ -54,7 +54,7 @@ export function ch1(): LevelDef {
     id: 'ch1',
     name: 'THE GYM',
     tagline: 'it started at the gym.',
-    objective: 'OBJECTIVE:\n<b>1.</b> carry dumbbells [E] onto BOTH scales — exactly 3 each\n<b>2.</b> ride the lift up, grab the KEY\n<b>3.</b> take the key to the pink GATE',
+    objective: 'OBJECTIVE:\n<b>1.</b> carry dumbbells [ENTER] onto BOTH scales — exactly 3 each\n<b>2.</b> ride the lift up, grab the KEY\n<b>3.</b> take the key to the pink GATE',
     skyGlow: PAL.ramenGold,
     fogDensity: 0.012,
     prims,

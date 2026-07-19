@@ -62,6 +62,7 @@ export class PondZeroScene implements Scene {
       return;
     }
     const intents = this.ctx.input.poll();
+    this.ctx.camera.control(dt, intents.rotate, intents.zoom);
     // you waddle. that's the whole game here.
     const cos = Math.cos(this.ctx.camera.yaw);
     const sin = Math.sin(this.ctx.camera.yaw);
@@ -76,7 +77,7 @@ export class PondZeroScene implements Scene {
     if (intents.fire || intents.pounce) void this.ctx.audio.play('quack', 0.6, 0.9 + Math.random() * 0.3);
 
     const center = Math.hypot(this.duck.group.position.x, this.duck.group.position.z);
-    this.ctx.hud.prompt(center < 2.5 && !this.saluted ? '[E] ...?' : null);
+    this.ctx.hud.prompt(center < 2.5 && !this.saluted ? '[ENTER] ...?' : null);
     if (center < 2.5 && intents.interact && !this.saluted) {
       this.saluted = true;
       this.playStinger();
