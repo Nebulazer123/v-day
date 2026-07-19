@@ -104,6 +104,11 @@ export class Cinema {
     this.grade.uniforms.uWarm.value = v;
   }
 
+  /** toggle the neon glow (bloom) post-processing pass */
+  setBloom(on: boolean): void {
+    this.bloom.enabled = on;
+  }
+
   render(scene: THREE.Scene, camera: THREE.Camera, dt: number): void {
     this.t += dt;
     this.flash = Math.max(0, this.flash - dt * 1.6);

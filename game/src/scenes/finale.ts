@@ -368,7 +368,7 @@ export class FinaleScene implements Scene {
 
   dispose(): void {
     this.ctx.audio.engine(false);
-    this.ctx.audio.musicVolume(0.28);
+    this.ctx.audio.musicVolume(this.ctx.save.data.settings.musicVolume);
     this.ctx.cinema.setWarm(0);
     this.ctx.hud.prompt(null);
   }

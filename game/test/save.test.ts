@@ -31,4 +31,17 @@ describe('save normalization', () => {
   it('negative pearls clamp to zero', () => {
     expect(normalizeSave({ pearls: -50 }).pearls).toBe(0);
   });
+
+  it('settings load with clamping and defaults', () => {
+    const d = normalizeSave({});
+    expect(d.settings.brightness).toBe(1.15);
+    expect(d.settings.bloom).toBe(true);
+    const hi = normalizeSave({ settings: { brightness: 9, musicVolume: 5, bloom: false } });
+    expect(hi.settings.brightness).toBe(2.4);
+    expect(hi.settings.musicVolume).toBe(1);
+    expect(hi.settings.bloom).toBe(false);
+    const lo = normalizeSave({ settings: { brightness: 0.1, musicVolume: -3 } });
+    expect(lo.settings.brightness).toBe(0.7);
+    expect(lo.settings.musicVolume).toBe(0);
+  });
 });

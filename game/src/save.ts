@@ -20,6 +20,7 @@ export function defaultSave(): SaveData {
     secrets: {},
     muted: false,
     tier: null,
+    settings: { brightness: 1.15, bloom: true, musicVolume: 0.28 },
   };
 }
 
@@ -52,6 +53,16 @@ export function normalizeSave(raw: unknown): SaveData {
   if (typeof r.secrets === 'object' && r.secrets !== null) d.secrets = r.secrets as Record<string, boolean>;
   if (typeof r.muted === 'boolean') d.muted = r.muted;
   if (r.tier === 'ultra' || r.tier === 'mobile') d.tier = r.tier;
+  if (typeof r.settings === 'object' && r.settings !== null) {
+    const s = r.settings as Record<string, unknown>;
+    if (typeof s.brightness === 'number' && isFinite(s.brightness)) {
+      d.settings.brightness = Math.min(2.4, Math.max(0.7, s.brightness));
+    }
+    if (typeof s.bloom === 'boolean') d.settings.bloom = s.bloom;
+    if (typeof s.musicVolume === 'number' && isFinite(s.musicVolume)) {
+      d.settings.musicVolume = Math.min(1, Math.max(0, s.musicVolume));
+    }
+  }
   return d;
 }
 

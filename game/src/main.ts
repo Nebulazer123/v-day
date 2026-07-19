@@ -61,7 +61,7 @@ class Game {
     });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = save.data.settings.brightness;
     if (tier === 'ultra') {
       renderer.shadowMap.enabled = true;
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -73,8 +73,10 @@ class Game {
 
     const camera = new GameCamera(innerWidth / innerHeight);
     const cinema = new Cinema(renderer, tier, app);
+    cinema.setBloom(save.data.settings.bloom);
     const input = new Input(canvas);
     const audio = new AudioBus(save.data.muted, (m) => save.patch((d) => { d.muted = m; }));
+    audio.musicVolume(save.data.settings.musicVolume);
     const hud = new Hud(
       app,
       () => audio.setMuted(!audio.muted),
@@ -149,22 +151,67 @@ class Game {
     this.paused = !this.paused;
     if (this.paused) {
       const o = this.ctx.hud.overlay();
+      const s = this.ctx.save.data.settings;
+      const row = 'display:flex;flex-direction:column;gap:6px';
+      const head = 'display:flex;justify-content:space-between;font-family:\'Space Grotesk\',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px';
+      const slider = 'accent-color:#FF4D8D;width:100%;height:22px;cursor:pointer';
       o.innerHTML = `
         <h1>PAUSED</h1>
-        <button class="dj-btn" data-a="resume">RESUME</button>
-        <button class="dj-btn" data-a="tier">QUALITY: ${this.ctx.tier.toUpperCase()}</button>
-        <button class="dj-btn" data-a="mute">${this.ctx.audio.muted ? 'UNMUTE' : 'MUTE'} MUSIC</button>
+        <div class="dj-card" style="display:flex;flex-direction:column;gap:16px;min-width:min(340px,86vw);padding:20px 24px">
+          <div style="font-family:'Space Grotesk';letter-spacing:2px;color:#CBB7E8;font-size:12px">SETTINGS</div>
+          <label style="${row}">
+            <span style="${head}"><span>☀ BRIGHTNESS</span><span data-r="bval">${Math.round(s.brightness * 100)}%</span></span>
+            <input type="range" data-a="brightness" min="0.7" max="2.4" step="0.05" value="${s.brightness}" style="${slider}" />
+          </label>
+          <label style="${row}">
+            <span style="${head}"><span>♪ MUSIC</span><span data-r="mval">${Math.round(s.musicVolume * 100)}%</span></span>
+            <input type="range" data-a="music" min="0" max="1" step="0.05" value="${s.musicVolume}" style="${slider}" />
+          </label>
+          <button class="dj-btn" data-a="bloom">GLOW (BLOOM): ${s.bloom ? 'ON' : 'OFF'}</button>
+          <button class="dj-btn" data-a="tier">GRAPHICS: ${this.ctx.tier.toUpperCase()} — TAP TO SWITCH</button>
+          <button class="dj-btn" data-a="mute">MUSIC: ${this.ctx.audio.muted ? 'MUTED' : 'ON'}</button>
+          <div style="font-size:11px;opacity:0.6;text-align:center">graphics change reloads · everything else is live</div>
+        </div>
+        <button class="dj-btn" data-a="resume" style="font-size:15px;padding:12px 28px">RESUME</button>
       `;
-      o.querySelector('[data-a="resume"]')!.addEventListener('click', () => this.togglePause());
-      o.querySelector('[data-a="tier"]')!.addEventListener('click', () => {
+      const q = <T extends HTMLElement>(sel: string): T => o.querySelector(sel) as T;
+
+      const bright = q<HTMLInputElement>('[data-a="brightness"]');
+      bright.addEventListener('input', () => {
+        const v = Number(bright.value);
+        this.ctx.renderer.toneMappingExposure = v;
+        q('[data-r="bval"]').textContent = `${Math.round(v * 100)}%`;
+        this.ctx.save.patch((d) => { d.settings.brightness = v; });
+      });
+
+      const music = q<HTMLInputElement>('[data-a="music"]');
+      music.addEventListener('input', () => {
+        const v = Number(music.value);
+        this.ctx.audio.musicVolume(v);
+        if (this.ctx.audio.muted && v > 0) this.ctx.audio.setMuted(false);
+        q('[data-r="mval"]').textContent = `${Math.round(v * 100)}%`;
+        this.ctx.save.patch((d) => { d.settings.musicVolume = v; });
+      });
+
+      q<HTMLButtonElement>('[data-a="bloom"]').addEventListener('click', (e) => {
+        const next = !this.ctx.save.data.settings.bloom;
+        this.ctx.cinema.setBloom(next);
+        this.ctx.save.patch((d) => { d.settings.bloom = next; });
+        (e.currentTarget as HTMLElement).textContent = `GLOW (BLOOM): ${next ? 'ON' : 'OFF'}`;
+      });
+
+      q<HTMLButtonElement>('[data-a="tier"]').addEventListener('click', () => {
         const next = this.ctx.tier === 'ultra' ? 'mobile' : 'ultra';
         this.ctx.save.patch((d) => { d.tier = next; });
         location.reload();
       });
-      o.querySelector('[data-a="mute"]')!.addEventListener('click', () => {
+
+      q<HTMLButtonElement>('[data-a="mute"]').addEventListener('click', (e) => {
         this.ctx.audio.setMuted(!this.ctx.audio.muted);
-        this.togglePause();
+        (e.currentTarget as HTMLElement).textContent = `MUSIC: ${this.ctx.audio.muted ? 'MUTED' : 'ON'}`;
       });
+
+      q<HTMLButtonElement>('[data-a="resume"]').addEventListener('click', () => this.togglePause());
       this.pauseOverlay = o;
     } else {
       this.pauseOverlay?.remove();

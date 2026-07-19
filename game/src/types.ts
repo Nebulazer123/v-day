@@ -101,4 +101,9 @@ export interface SaveData {
   secrets: Record<string, boolean>;
   muted: boolean;
   tier: 'ultra' | 'mobile' | null;
+  settings: {
+    brightness: number;   // renderer exposure, 0.7–2.4 (1.0 = neutral)
+    bloom: boolean;       // neon glow post-processing
+    musicVolume: number;  // 0–1
+  };
 }
