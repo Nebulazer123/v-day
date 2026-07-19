@@ -217,12 +217,23 @@ export class PlayScene implements Scene {
         const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.5, 10), mat(0x2a3352));
         base.position.y = 0.25;
         g.add(base);
-        // glowing wire arm shows routing direction
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 2.4), emissiveMat(PAL.ramenGold, 1.3));
-        arm.position.y = 0.6;
-        g.add(arm);
+        if (e.kind === 'mirror') {
+          // 45°-set mirror panel: '/' when state is even, '\' when odd
+          const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(1.6, 1.1, 0.1),
+            mat(0xdde7f0, { gloss: 0.95, rim: 0.5, flatShading: false, emissive: 0x223044, emissiveIntensity: 0.6 })
+          );
+          panel.position.y = 1.1;
+          panel.rotation.y = Math.PI / 4;
+          g.add(panel);
+        } else {
+          // glowing wire arm shows routing direction
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 2.4), emissiveMat(PAL.ramenGold, 1.3));
+          arm.position.y = 0.6;
+          g.add(arm);
+        }
         const state = e.state ?? 0;
-        g.rotation.y = (state * Math.PI * 2) / e.states;
+        g.rotation.y = e.kind === 'mirror' ? (state * Math.PI) / 2 : (state * Math.PI * 2) / e.states;
         g.position.copy(v(e.pos));
         this.scene.add(g);
         this.rotors.push({ id: e.id, obj: g, states: e.states, state, kind: e.kind });
@@ -441,7 +452,9 @@ export class PlayScene implements Scene {
         this.updateSlotLabel(nearSlot);
       } else if (nearRotor) {
         nearRotor.state = (nearRotor.state + 1) % nearRotor.states;
-        nearRotor.obj.rotation.y = (nearRotor.state * Math.PI * 2) / nearRotor.states;
+        nearRotor.obj.rotation.y = nearRotor.kind === 'mirror'
+          ? (nearRotor.state * Math.PI) / 2
+          : (nearRotor.state * Math.PI * 2) / nearRotor.states;
         void this.ctx.audio.play('click', 0.55);
       } else if (nearValve) {
         nearValve.state = (nearValve.state + 1) % 3;

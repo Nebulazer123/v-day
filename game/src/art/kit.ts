@@ -348,7 +348,7 @@ export function makeSign(lines: string[], opts: { w?: number; h?: number; bg?: s
   const g = new THREE.Group();
   const board = new THREE.Mesh(
     new THREE.PlaneGeometry(w, h),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ map: tex })
   );
   board.position.y = 2.2;
   g.add(board);
