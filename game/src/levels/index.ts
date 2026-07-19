@@ -9,6 +9,8 @@ import { ForestScene } from '../scenes/forest';
 import { ch1 } from './ch1';
 import { ch2 } from './ch2';
 import { ch3 } from './ch3';
+import { FinaleScene } from '../scenes/finale';
+import { PondZeroScene } from '../scenes/pondzero';
 
 export const LEVELS: Record<string, (ctx: GameContext, mods?: string[]) => Scene> = {
   ch1: (ctx, mods) => new PlayScene(ctx, ch1(), mods),
@@ -17,4 +19,6 @@ export const LEVELS: Record<string, (ctx: GameContext, mods?: string[]) => Scene
   ch4: (ctx, mods) => new BeachScene(ctx, mods),
   ch5: (ctx, mods) => new DockScene(ctx, mods),
   ch6: (ctx, mods) => new ForestScene(ctx, mods),
+  ch7: (ctx) => new FinaleScene(ctx),
+  pondzero: (ctx) => new PondZeroScene(ctx),
 };

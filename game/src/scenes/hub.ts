@@ -12,6 +12,7 @@ import { PAL } from '../art/palette';
 import { makeDuck, makeHeartPiece } from '../art/kit';
 import { Fx } from '../fx';
 import { Cutscene } from '../cutscene';
+import { makeGoldenDuck } from '../art/kit';
 import { openShop } from '../shop';
 import { offerBounties } from '../economy';
 import type { GameContext, Scene } from '../main';
@@ -35,6 +36,11 @@ export class HubScene implements Scene {
   private shopOpen = false;
   private hornTaps = 0;
   private hornTimer = 0;
+  private duckCode: number[] = [];
+  private bentleyTaps = 0;
+  private idleTime = 0;
+  private grandmaToldYou = false;
+  private hubDucks: { id: number; obj: THREE.Object3D; taken: boolean }[] = [];
 
   constructor(private ctx: GameContext) {
     const def = hubDef();
@@ -144,10 +150,99 @@ export class HubScene implements Scene {
     ctx.camera.snapTo(this.player.pos);
     this.fx = new Fx(this.scene);
 
+    // the last three golden ducks live on the highway itself
+    const duckSpots: [number, number, number, number][] = [
+      [19, -(ROAD_HALF + 10), 3.8, DINER_Z],  // diner roof (pounce up the wall)
+      [20, 0, 0.5, 238],                        // the far end of the road
+      [21, ROAD_HALF + 5, 0.5, 215],            // behind the ch7 exit pad
+    ];
+    for (const [id, x, y, z] of duckSpots) {
+      if (ctx.save.data.ducks.includes(id)) continue;
+      const d = makeGoldenDuck();
+      d.position.set(x, y, z);
+      this.scene.add(d);
+      this.hubDucks.push({ id, obj: d, taken: false });
+    }
+
     if (!ctx.save.data.secrets.introSeen) {
       this.playHeist();
     } else {
-      ctx.hud.chapterCard('THE HIGHWAY', 'the ducks stole the letter. drive.');
+      const now = new Date();
+      const feb14 = now.getMonth() === 1 && now.getDate() === 14;
+      const august = now.getMonth() === 7;
+      ctx.hud.chapterCard(
+        'THE HIGHWAY',
+        feb14 ? 'happy valentine\u2019s day, lainie.' : august ? 'est. august 2023 \ud83c\udf82' : 'the ducks stole the letter. drive.'
+      );
+    }
+
+    // duck-code: click/tap corners TL, TR, BL, BR, then center within 6s
+    addEventListener('pointerdown', this.cornerTap);
+    // bentley botherer: click the dog
+    addEventListener('pointerdown', this.dogTap);
+  }
+
+  private cornerTap = (e: PointerEvent): void => {
+    const x = e.clientX / innerWidth;
+    const y = e.clientY / innerHeight;
+    const corner =
+      x < 0.18 && y < 0.18 ? 0 :
+      x > 0.82 && y < 0.18 ? 1 :
+      x < 0.18 && y > 0.82 ? 2 :
+      x > 0.82 && y > 0.82 ? 3 :
+      x > 0.4 && x < 0.6 && y > 0.4 && y < 0.6 ? 4 : -1;
+    if (corner === -1) return;
+    const want = [0, 1, 2, 3, 4];
+    this.duckCode.push(corner);
+    if (this.duckCode.length > 5) this.duckCode.shift();
+    if (want.every((w, i) => this.duckCode[i] === w)) {
+      this.duckCode = [];
+      this.duckMode();
+    }
+  };
+
+  private dogTap = (e: PointerEvent): void => {
+    if (this.mode !== 'walk') return;
+    // rough screen-space hit test on the dog
+    const p = this.player.pos.clone().setY(this.player.pos.y + 0.5).project(this.ctx.camera.cam);
+    const sx = (p.x * 0.5 + 0.5) * innerWidth;
+    const sy = (-p.y * 0.5 + 0.5) * innerHeight;
+    if (Math.hypot(e.clientX - sx, e.clientY - sy) < 70) {
+      this.bentleyTaps++;
+      void this.ctx.audio.play('bark', 0.4 + this.bentleyTaps * 0.07, 1 + this.bentleyTaps * 0.06);
+      if (this.bentleyTaps >= 7) {
+        this.bentleyTaps = 0;
+        this.ctx.hud.toast('BOOF. TAIL: WAGGING. (certified dog botherer)', 2.6);
+        this.fx.burst(this.player.pos.clone().setY(1.2), 40, { colors: [PAL.heartNeon], speed: 3, up: 3, life: 1 });
+        this.ctx.save.patch((d) => { d.secrets.botherer = true; });
+      }
+    }
+  };
+
+  /** DUCK MODE: 30-duck flypast + POND ZERO unlock */
+  private duckMode(): void {
+    void this.ctx.audio.play('quack', 0.8);
+    void this.ctx.audio.play('quack', 0.8, 0.8);
+    void this.ctx.audio.play('quack', 0.8, 1.2);
+    this.ctx.hud.toast('DUCK MODE. POND ZERO REVEALED. (it was always the ducks)', 3.4);
+    this.ctx.save.patch((d) => { d.secrets.pondzero = true; });
+    const base = this.mode === 'walk' ? this.player.pos.clone() : this.car.rig.group.position.clone();
+    for (let i = 0; i < 30; i++) {
+      const d = makeDuck();
+      const row = Math.floor(i / 2);
+      const side = i % 2 === 0 ? 1 : -1;
+      d.group.position.set(base.x + side * row * 1.3, 9 + row * 0.3, base.z - 50);
+      this.scene.add(d.group);
+      const t0 = performance.now();
+      const fly = (): void => {
+        const t = (performance.now() - t0) / 1000;
+        if (t > 8) { d.group.removeFromParent(); return; }
+        d.group.position.z += 0.4;
+        d.wingL.rotation.z = 0.6 + Math.sin(t * 14 + i) * 0.5;
+        d.wingR.rotation.z = -0.6 - Math.sin(t * 14 + i) * 0.5;
+        requestAnimationFrame(fly);
+      };
+      fly();
     }
   }
 
@@ -290,6 +385,26 @@ export class HubScene implements Scene {
         this.fx.burst(this.player.pos, 10, { colors: [0x8a93b8], speed: 1.6, up: 0.8, life: 0.4 });
       }
 
+      // idle → grandma checks on you
+      const moving = Math.hypot(this.player.state.vx, this.player.state.vz) > 0.3;
+      this.idleTime = moving || intents.any ? 0 : this.idleTime + dt;
+      if (this.idleTime > 30 && !this.grandmaToldYou) {
+        this.grandmaToldYou = true;
+        this.ctx.hud.toast('GRANDMA SAYS: SPEAK UP. ALSO, GO FIND THE DUCKS.', 3);
+        void this.ctx.audio.play('chatter', 0.4, 0.8);
+      }
+
+      // pond zero (behind the diner) once revealed or 21/21
+      const pondUnlocked = this.ctx.save.data.secrets.pondzero || this.ctx.save.data.ducks.length >= 21;
+      const pondPos = new THREE.Vector3(-(ROAD_HALF + 8), 0, DINER_Z - 10);
+      if (pondUnlocked && this.player.pos.distanceTo(pondPos) < 5) {
+        this.ctx.hud.prompt('[E] POND ZERO (?)');
+        if (intents.interact) {
+          this.ctx.go('play', { id: 'pondzero' });
+          return;
+        }
+      }
+
       // enter car? visit the diner?
       const distToCar = this.player.pos.distanceTo(this.car.rig.group.position);
       const dinerPos = new THREE.Vector3(-(ROAD_HALF + 8), 0, DINER_Z);
@@ -400,6 +515,20 @@ export class HubScene implements Scene {
       );
     }
 
+    // hub golden ducks (walk or drive into them)
+    const probe = this.mode === 'walk' ? this.player.pos : this.car.rig.group.position;
+    for (const hd of this.hubDucks) {
+      if (hd.taken) continue;
+      hd.obj.rotation.y += dt * 2;
+      if (hd.obj.position.distanceTo(probe) < 1.8) {
+        hd.taken = true;
+        hd.obj.visible = false;
+        this.ctx.save.patch((d) => { if (!d.ducks.includes(hd.id)) d.ducks.push(hd.id); });
+        this.ctx.hud.toast(`GOLDEN DUCK ${this.ctx.save.data.ducks.length}/21`, 2.2);
+        void this.ctx.audio.play('quack', 0.7, 0.8);
+      }
+    }
+
     if (intents.pause) this.ctx.togglePause();
   }
 
@@ -439,6 +568,8 @@ export class HubScene implements Scene {
   }
 
   dispose(): void {
+    removeEventListener('pointerdown', this.cornerTap);
+    removeEventListener('pointerdown', this.dogTap);
     this.ctx.audio.engine(false);
   }
 }

@@ -39,7 +39,9 @@ export class Cutscene {
   ) {
     cinema.setCinematic(true);
     camera.cinematicControl = true;
+    // skip on click/tap or Escape only — movement keys must never skip
     const skip = (e: Event): void => {
+      if (e instanceof KeyboardEvent && e.code !== 'Escape') return;
       e.stopPropagation();
       this.finish();
     };

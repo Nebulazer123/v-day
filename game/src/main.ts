@@ -117,6 +117,11 @@ class Game {
     this.ctx.hud.fade(true);
     const build = (): void => {
       this.current?.dispose();
+      // a scene change mid-cutscene must not leak cinema state
+      this.ctx.cinema.setCinematic(false);
+      this.ctx.cinema.timeScale = 1;
+      this.ctx.cinema.setWarm(0);
+      this.ctx.camera.cinematicControl = false;
       const levelId = typeof params?.id === 'string' ? params.id : null;
       if (name === 'play' && levelId && LEVELS[levelId]) {
         const mods = Array.isArray(params?.mods) ? (params!.mods as string[]) : [];
