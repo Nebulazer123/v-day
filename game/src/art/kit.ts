@@ -151,17 +151,23 @@ export function makeC6(): C6Rig {
   nose.castShadow = true;
   group.add(nose);
 
-  // cabin: low greenhouse set rearward — tapered box + raked windshield
-  const cabin = box(1.3, 0.34, 1.5, 0x1b2438, { gloss: 0.7, rim: 0.45, flatShading: false });
-  cabin.position.set(0, 0.88, -0.5);
-  group.add(cabin);
-  const windshield = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.66, 1.26, 3, 1), mat(0x1b2438, { gloss: 0.7, rim: 0.45, flatShading: false }));
-  windshield.geometry.scale(1, 1, 0.42);
-  windshield.rotation.z = Math.PI / 2;
-  windshield.rotation.y = Math.PI / 2;
-  windshield.position.set(0, 0.74, 0.42);
-  windshield.castShadow = true;
+  // cabin: low raked greenhouse — windshield slab, roof, rear glass
+  const glass = { gloss: 0.75, rim: 0.45, flatShading: false } as const;
+  const windshield = box(1.28, 0.05, 0.78, 0x151d30, glass);
+  windshield.rotation.x = -0.62;
+  windshield.position.set(0, 0.86, 0.28);
   group.add(windshield);
+  const roof = box(1.24, 0.05, 0.72, 0x151d30, glass);
+  roof.position.set(0, 1.02, -0.42);
+  group.add(roof);
+  const rearGlass = box(1.24, 0.05, 0.62, 0x151d30, glass);
+  rearGlass.rotation.x = 0.72;
+  rearGlass.position.set(0, 0.88, -1.02);
+  group.add(rearGlass);
+  // b-pillars fill the sides under the glass line
+  const pillars = box(1.18, 0.3, 1.36, 0x151d30, glass);
+  pillars.position.set(0, 0.78, -0.42);
+  group.add(pillars);
 
   // rear deck + SHORT lip spoiler (non-negotiable detail)
   const deck = box(1.7, 0.16, 0.7, PAL.victoryRed, paint);
@@ -171,12 +177,19 @@ export function makeC6(): C6Rig {
   spoiler.position.set(0, 0.78, -2.08);
   group.add(spoiler);
 
-  // Morimoto taillights: four round emissive reds
+  // rear fascia panel with four round Morimoto taillights, flush-mounted
+  const fascia = box(1.72, 0.34, 0.06, 0x1a0f12, { gloss: 0.3, flatShading: false });
+  fascia.position.set(0, 0.55, -2.13);
+  group.add(fascia);
   const taillights: THREE.Mesh[] = [];
-  for (const x of [-0.62, -0.28, 0.28, 0.62]) {
-    const tl = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.05, 14), emissiveMat(PAL.taillight, 2.6));
+  for (const x of [-0.64, -0.3, 0.3, 0.64]) {
+    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.03, 14), mat(0x0d0709, { flatShading: false }));
+    housing.rotation.x = Math.PI / 2;
+    housing.position.set(x, 0.55, -2.16);
+    group.add(housing);
+    const tl = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.03, 14), emissiveMat(PAL.taillight, 1.7));
     tl.rotation.x = Math.PI / 2;
-    tl.position.set(x, 0.55, -2.12);
+    tl.position.set(x, 0.55, -2.17);
     group.add(tl);
     taillights.push(tl);
   }
@@ -227,10 +240,10 @@ export function makeC6(): C6Rig {
     ctx.fillText('LAINIE', 64, 36);
   });
   const plate = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.5, 0.25),
-    new THREE.MeshBasicMaterial({ map: plateTex })
+    new THREE.PlaneGeometry(0.44, 0.22),
+    new THREE.MeshLambertMaterial({ map: plateTex })
   );
-  plate.position.set(0, 0.36, -2.145);
+  plate.position.set(0, 0.32, -2.145);
   plate.rotation.y = Math.PI;
   group.add(plate);
 

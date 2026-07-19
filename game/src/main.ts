@@ -7,6 +7,7 @@ import { AudioBus } from './audio';
 import { Save } from './save';
 import { Hud } from './hud';
 import { GameCamera } from './camera';
+import { Cinema } from './cinema';
 import { HubScene } from './scenes/hub';
 import { LEVELS } from './levels/index';
 
@@ -19,6 +20,7 @@ export interface Scene {
 export interface GameContext {
   renderer: THREE.WebGLRenderer;
   camera: GameCamera;
+  cinema: Cinema;
   input: Input;
   audio: AudioBus;
   save: Save;
@@ -69,6 +71,7 @@ class Game {
     renderer.setSize(innerWidth, innerHeight);
 
     const camera = new GameCamera(innerWidth / innerHeight);
+    const cinema = new Cinema(renderer, tier, app);
     const input = new Input(canvas);
     const audio = new AudioBus(save.data.muted, (m) => save.patch((d) => { d.muted = m; }));
     const hud = new Hud(
@@ -81,7 +84,7 @@ class Game {
     hud.setPieces(save.data.pieces.length);
 
     this.ctx = {
-      renderer, camera, input, audio, save, hud, tier,
+      renderer, camera, cinema, input, audio, save, hud, tier,
       go: (name, params) => this.go(name, params),
       togglePause: () => this.togglePause(),
     };
@@ -128,6 +131,7 @@ class Game {
 
   private onResize(): void {
     this.ctx.renderer.setSize(innerWidth, innerHeight);
+    this.ctx.cinema.resize();
     this.ctx.camera.cam.aspect = innerWidth / innerHeight;
     this.ctx.camera.cam.updateProjectionMatrix();
   }
@@ -166,7 +170,7 @@ class Game {
     this.lastTime = now;
     if (this.paused || !this.current) return;
 
-    this.accumulator += dt;
+    this.accumulator += dt * this.ctx.cinema.timeScale;
     let steps = 0;
     while (this.accumulator >= FIXED_STEP && steps < 12) {
       this.current.update(FIXED_STEP);
@@ -174,7 +178,7 @@ class Game {
       steps++;
     }
     this.ctx.hud.update(dt);
-    this.ctx.renderer.render(this.current.scene, this.ctx.camera.cam);
+    this.ctx.cinema.render(this.current.scene, this.ctx.camera.cam, dt);
   }
 }
 

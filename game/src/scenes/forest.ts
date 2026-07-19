@@ -8,6 +8,7 @@ import { ch6, CH6_EDWARD, CH6_SOCKETS } from '../levels/ch6';
 import { PAL } from '../art/palette';
 import { mat, emissiveMat } from '../art/toon';
 import { makePine } from '../art/kit';
+import { Cutscene } from '../cutscene';
 
 export class ForestScene extends PlayScene {
   private edward: THREE.Group;
@@ -139,24 +140,45 @@ export class ForestScene extends PlayScene {
   private yeet(): void {
     this.yeeted = true;
     this.goalBlocker.enabled = false;
-    this.beamArm.visible = false;
-    void this.ctx.audio.play('howl', 0.8);
-    this.ctx.hud.toast('EDWARD HAS LEFT THE TREELINE. TEAM-ROCKET STYLE.', 3.2);
-    // launch him over the trees
     const start = this.edward.position.clone();
-    const t0 = this.runTime;
-    const launch = (): void => {
-      const t = this.runTime - t0;
-      if (t > 2.4 || !this.edward.parent) return;
-      this.edward.position.set(
-        start.x + t * 9,
-        t * 14 - 2.2 * t * t,
-        start.z + t * 16
-      );
-      this.edward.rotation.z += 0.12;
-      requestAnimationFrame(launch);
-    };
-    launch();
-    this.ctx.camera.kick(0.5);
+    const eLook = start.clone().setY(3.4);
+    this.cutscene = new Cutscene([
+      // slow push-in on Edward, slow-mo
+      { t: 0, cam: { pos: start.clone().add(new THREE.Vector3(0, 2.2, -8)), look: eLook, fov: 44 }, slowmo: 0.2 },
+      { t: 0.1, cam: { pos: start.clone().add(new THREE.Vector3(-2, 2.6, -5)), look: eLook, fov: 38 }, glide: 1.2 },
+      {
+        t: 1.3,
+        flash: 1,
+        slowmo: 1,
+        do: (): void => {
+          this.beamArm.visible = false;
+          void this.ctx.audio.play('impact', 0.7);
+          this.fx.burst(eLook, 220, { colors: [0xdde7f0, 0xffffff], speed: 7, up: 6, gravity: 2, life: 1.6 });
+          // the launch arc, Team-Rocket style
+          const t0 = performance.now();
+          const launch = (): void => {
+            const t = (performance.now() - t0) / 1000;
+            if (t > 2.6 || !this.edward.parent) return;
+            this.edward.position.set(start.x + t * 9, t * 15 - 2.4 * t * t, start.z + t * 16);
+            this.edward.rotation.z += 0.14;
+            requestAnimationFrame(launch);
+          };
+          launch();
+        },
+      },
+      // wide shot tracking him over the treeline
+      { t: 1.45, cam: { pos: start.clone().add(new THREE.Vector3(-9, 3, -10)), look: start.clone().add(new THREE.Vector3(12, 16, 20)), fov: 58 }, glide: 1.6 },
+      {
+        t: 2.6,
+        do: (): void => {
+          void this.ctx.audio.play('howl', 0.8);
+          this.fx.burst(start.clone().add(new THREE.Vector3(20, 22, 34)), 40, { colors: [0xffffff], speed: 2, up: 0, gravity: 0.5, life: 1 });
+          this.ctx.hud.toast('EDWARD HAS LEFT THE TREELINE.', 3);
+        },
+      },
+    ], 4.4, this.ctx.camera, this.ctx.cinema, () => {
+      this.cutscene = null;
+      this.ctx.camera.snapTo(this.player.pos);
+    });
   }
 }

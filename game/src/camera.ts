@@ -6,6 +6,8 @@ import type { CameraZone } from './types';
 
 export class GameCamera {
   readonly cam: THREE.PerspectiveCamera;
+  /** while true, a Cutscene owns the camera — follow logic stands down */
+  cinematicControl = false;
   private zones: CameraZone[] = [];
   private defaultOffset = new THREE.Vector3(0, 6, -8);
   private curOffset = new THREE.Vector3(0, 6, -8);
@@ -35,6 +37,7 @@ export class GameCamera {
   }
 
   update(dt: number, target: THREE.Vector3, vel: THREE.Vector3, nudge: number): void {
+    if (this.cinematicControl) return;
     // active zone
     let offset = this.defaultOffset;
     let fov = 55;

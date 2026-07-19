@@ -9,6 +9,9 @@ import { Car } from '../car';
 import { Sky } from '../art/sky';
 import { makeStreetlight, makeGuardrail, makeSign, makePine } from '../art/kit';
 import { PAL } from '../art/palette';
+import { makeDuck, makeHeartPiece } from '../art/kit';
+import { Fx } from '../fx';
+import { Cutscene } from '../cutscene';
 import type { GameContext, Scene } from '../main';
 
 const CAR_SEAT = new THREE.Vector3(0, 0.6, -0.2);
@@ -24,6 +27,9 @@ export class HubScene implements Scene {
   private reverseTime = 0;
   private dinerFound = false;
   private sun: THREE.DirectionalLight;
+  private fx: Fx;
+  private cutscene: Cutscene | null = null;
+  private heroDone = false;
 
   constructor(private ctx: GameContext) {
     const def = hubDef();
@@ -114,7 +120,121 @@ export class HubScene implements Scene {
 
     ctx.camera.configure([], { x: 0, y: 5.2, z: -7.5 });
     ctx.camera.snapTo(this.player.pos);
-    ctx.hud.chapterCard('THE HIGHWAY', 'the ducks stole the letter. drive.');
+    this.fx = new Fx(this.scene);
+
+    if (!ctx.save.data.secrets.introSeen) {
+      this.playHeist();
+    } else {
+      ctx.hud.chapterCard('THE HIGHWAY', 'the ducks stole the letter. drive.');
+    }
+  }
+
+  /** Cold open: ducks shred the letter over the C6 and scatter. */
+  private playHeist(): void {
+    const carP = this.car.rig.group.position.clone();
+    const heistDucks: THREE.Group[] = [];
+    const letter = makeHeartPiece();
+    letter.position.set(carP.x, 4.2, carP.z);
+    letter.visible = false;
+    this.scene.add(letter);
+
+    const V = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
+    this.cutscene = new Cutscene([
+      { t: 0, cam: { pos: V(carP.x, 14, carP.z - 1), look: carP, fov: 40 } },
+      { t: 0.2, cam: { pos: V(carP.x - 3, 1.2, carP.z - 6), look: V(carP.x, 0.8, carP.z), fov: 44 }, glide: 2.6 },
+      {
+        t: 2.2,
+        do: (): void => {
+          letter.visible = true;
+          for (let i = 0; i < 4; i++) {
+            const d = makeDuck();
+            d.group.position.set(carP.x + Math.cos(i * 1.6) * 2.4, 7 + i, carP.z + Math.sin(i * 1.6) * 2.4);
+            this.scene.add(d.group);
+            heistDucks.push(d.group);
+          }
+          void this.ctx.audio.play('quack', 0.7);
+        },
+      },
+      {
+        t: 2.4,
+        cam: { pos: V(carP.x + 4, 3.4, carP.z - 4), look: V(carP.x, 4, carP.z), fov: 50 },
+        glide: 1.4,
+        slowmo: 0.35,
+        do: (): void => {
+          for (const d of heistDucks) d.position.y = 5.2;
+        },
+      },
+      {
+        t: 3.9,
+        flash: 0.5,
+        slowmo: 1,
+        do: (): void => {
+          letter.visible = false;
+          this.fx.burst(letter.position, 260, { colors: [0xf5f2e8, PAL.heartNeon, PAL.duck], speed: 6, up: 4, gravity: 3, life: 2 });
+          void this.ctx.audio.play('impact', 0.6);
+          void this.ctx.audio.play('quack', 0.8, 0.8);
+        },
+      },
+      {
+        t: 4.5,
+        cam: { pos: V(carP.x, 2.2, carP.z - 9), look: V(carP.x, 8, carP.z + 30), fov: 62 },
+        glide: 1.8,
+        do: (): void => {
+          // ducks scatter toward the horizon with the pieces
+          for (const [i, d] of heistDucks.entries()) {
+            const dir = V((i - 1.5) * 3, 4 + i, 24);
+            const from = d.position.clone();
+            const t0 = performance.now();
+            const fly = (): void => {
+              const k = (performance.now() - t0) / 1600;
+              if (k > 1 || !d.parent) { d.removeFromParent(); return; }
+              d.position.lerpVectors(from, from.clone().add(dir), k * k);
+              requestAnimationFrame(fly);
+            };
+            fly();
+          }
+          void this.ctx.audio.play('whoosh', 0.5);
+        },
+      },
+      {
+        t: 6.4,
+        do: (): void => {
+          this.ctx.hud.chapterCard('THE DUCK JOB', 'the ducks stole the letter. send the dog.');
+          void this.ctx.audio.play('howl', 0.4, 1.3);
+        },
+      },
+    ], 8.2, this.ctx.camera, this.ctx.cinema, () => {
+      this.cutscene = null;
+      this.ctx.save.patch((d) => { d.secrets.introSeen = true; });
+      this.ctx.camera.snapTo(this.player.pos);
+      this.ctx.hud.chapterCard('THE HIGHWAY', 'the ducks stole the letter. drive.');
+    });
+  }
+
+  /** First time in the driver's seat: the 270° hero orbit. */
+  private playHeroReveal(): void {
+    const c = this.car.rig.group.position.clone();
+    const orbit = (a: number, r: number, y: number): THREE.Vector3 =>
+      new THREE.Vector3(c.x + Math.sin(a) * r, y, c.z + Math.cos(a) * r);
+    this.cutscene = new Cutscene([
+      { t: 0, cam: { pos: orbit(Math.PI, 5, 0.7), look: new THREE.Vector3(c.x, 0.7, c.z), fov: 38 } },
+      { t: 0.1, cam: { pos: orbit(Math.PI * 0.5, 5.4, 0.9), look: new THREE.Vector3(c.x, 0.6, c.z), fov: 38 }, glide: 1.9 },
+      { t: 2.0, cam: { pos: orbit(Math.PI * 0.08, 6, 1.4), look: new THREE.Vector3(c.x, 0.7, c.z), fov: 42 }, glide: 1.8 },
+      {
+        t: 3.8,
+        flash: 0.35,
+        do: (): void => {
+          this.car.setHeadlights(true);
+          void this.ctx.audio.play('boing', 0.3, 0.5);
+        },
+        cam: { pos: orbit(0, 7.5, 0.8), look: new THREE.Vector3(c.x, 0.8, c.z), fov: 48 },
+        glide: 1.2,
+      },
+      { t: 5.0, do: (): void => this.ctx.hud.toast('BENTLEY CAN DRIVE. DO NOT ASK.', 2.5) },
+    ], 5.8, this.ctx.camera, this.ctx.cinema, () => {
+      this.cutscene = null;
+      this.ctx.camera.snapTo(this.car.rig.group.position);
+    });
   }
 
   private isUnlocked(id: string): boolean {
@@ -124,6 +244,12 @@ export class HubScene implements Scene {
   }
 
   update(dt: number): void {
+    this.fx.update(dt);
+    if (this.cutscene && !this.cutscene.done) {
+      this.cutscene.update(dt);
+      this.sky.update(dt);
+      return;
+    }
     const intents = this.ctx.input.poll();
     this.sky.update(dt);
     this.exitCooldown = Math.max(0, this.exitCooldown - dt);
@@ -135,6 +261,10 @@ export class HubScene implements Scene {
       if (this.player.events.pounced) {
         void this.ctx.audio.play('whoosh', 0.4);
         this.ctx.camera.kick(0.18);
+        this.fx.burst(this.player.pos, 14, { colors: [0x8a93b8], speed: 2, up: 1, life: 0.5 });
+      }
+      if (this.player.events.landed) {
+        this.fx.burst(this.player.pos, 10, { colors: [0x8a93b8], speed: 1.6, up: 0.8, life: 0.4 });
       }
 
       // enter car?
@@ -146,8 +276,11 @@ export class HubScene implements Scene {
         this.car.setHeadlights(true);
         this.ctx.audio.engine(true, 0);
         void this.ctx.audio.play('click', 0.5);
-        this.ctx.hud.toast('BENTLEY CAN DRIVE. DO NOT ASK.');
         this.ctx.camera.configure([], { x: 0, y: 4.6, z: -9.5 });
+        if (!this.heroDone) {
+          this.heroDone = true;
+          this.playHeroReveal();
+        }
       }
 
       this.ctx.camera.update(

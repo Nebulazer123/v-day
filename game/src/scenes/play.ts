@@ -14,6 +14,8 @@ import { InteractManager } from '../interact';
 import { evaluate, type PuzzleInputs } from '../puzzles';
 import { Weapons, WEAPON_NAMES } from '../weapons';
 import { PatrolDuck, Crab, Wisp, Drone, type Enemy } from '../enemies';
+import { Fx } from '../fx';
+import { Cutscene } from '../cutscene';
 
 interface Pickup {
   obj: THREE.Object3D;
@@ -60,6 +62,8 @@ export class PlayScene implements Scene {
   protected onZone: ((id: string) => void) | null = null;
   /** exact amounts per slot (from logic rules) for overpay detection */
   private slotTargets: Record<string, number> = {};
+  protected fx!: Fx;
+  protected cutscene: Cutscene | null = null;
 
   constructor(protected ctx: GameContext, protected def: LevelDef) {
     for (const r of def.logic ?? []) {
@@ -110,6 +114,7 @@ export class PlayScene implements Scene {
     ctx.camera.snapTo(this.player.pos);
     ctx.hud.chapterCard(def.name, def.tagline);
     ctx.hud.setHearts(this.hearts, this.maxHearts);
+    this.fx = new Fx(this.scene);
     void ctx.audio.play('levelstart', 0.5);
   }
 
@@ -327,9 +332,34 @@ export class PlayScene implements Scene {
       this.ctx.save.patch((d) => { if (!d.weapons.includes(p.weapon!)) d.weapons.push(p.weapon!); });
       this.weapons.setLoadout(this.ctx.save.data.weapons, this.ctx.save.data.weaponTiers);
       this.weapons.equipped = p.weapon;
-      this.ctx.hud.toast(`${WEAPON_NAMES[p.weapon]} ACQUIRED`, 3);
       void this.ctx.audio.play('fanfare', 0.6);
+      this.playWeaponVignette(p.weapon, this.player.pos.clone());
     }
+  }
+
+  /** spotlight orbit + name card when a weapon joins the arsenal */
+  private playWeaponVignette(weapon: WeaponId, at: THREE.Vector3): void {
+    const spot = new THREE.SpotLight(0xffffff, 300, 20, 0.5, 0.4, 1.4);
+    spot.position.set(at.x, 8, at.z);
+    spot.target.position.copy(at);
+    this.scene.add(spot, spot.target);
+    const orbit = (a: number, r: number, y: number): THREE.Vector3 =>
+      new THREE.Vector3(at.x + Math.sin(a) * r, y, at.z + Math.cos(a) * r);
+    this.cutscene = new Cutscene([
+      { t: 0, cam: { pos: orbit(-0.6, 4, 1.4), look: at.clone().setY(at.y + 0.8), fov: 42 } },
+      { t: 0.1, cam: { pos: orbit(0.9, 4, 1.8), look: at.clone().setY(at.y + 0.8), fov: 40 }, glide: 2.2 },
+      {
+        t: 0.4,
+        do: (): void => {
+          this.ctx.hud.toast(`${WEAPON_NAMES[weapon]} ACQUIRED`, 2.6);
+          this.fx.burst(at.clone().setY(at.y + 1), 60, { colors: [PAL.crtGreen, PAL.star], speed: 3, up: 3, life: 1 });
+        },
+      },
+    ], 2.6, this.ctx.camera, this.ctx.cinema, () => {
+      this.cutscene = null;
+      spot.removeFromParent();
+      this.ctx.camera.snapTo(this.player.pos);
+    });
   }
 
   private updateSlotLabel(slot: { sum: number; label: THREE.Mesh; id: string }): void {
@@ -385,6 +415,12 @@ export class PlayScene implements Scene {
 
   update(dt: number): void {
     if (this.done) return;
+    this.fx.update(dt);
+    if (this.cutscene && !this.cutscene.done) {
+      this.cutscene.update(dt);
+      this.sky.update(dt);
+      return;
+    }
     const intents = this.ctx.input.poll();
     this.sky.update(dt);
     this.runTime += dt;
@@ -394,10 +430,14 @@ export class PlayScene implements Scene {
 
     this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
     if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3);
-    if (this.player.events.landed) void this.ctx.audio.play('land', 0.22);
+    if (this.player.events.landed) {
+      void this.ctx.audio.play('land', 0.22);
+      this.fx.burst(this.player.pos, 10, { colors: [0x8a93b8], speed: 1.6, up: 0.8, life: 0.4 });
+    }
     if (this.player.events.pounced) {
       void this.ctx.audio.play('whoosh', 0.4);
       this.ctx.camera.kick(0.15);
+      this.fx.burst(this.player.pos, 14, { colors: [0x8a93b8], speed: 2, up: 1, life: 0.5 });
       // pounce bonks
       for (const e of this.enemies) {
         if (e.alive && e.obj.position.distanceTo(this.player.pos) < 1.2) {

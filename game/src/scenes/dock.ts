@@ -6,6 +6,7 @@ import { PlayScene } from './play';
 import type { GameContext } from '../main';
 import { ch5, ch5Mirrors, CH5_SOLUTION, CH5_STAR, CH5_TELESCOPE } from '../levels/ch5';
 import { traceBeam, BeamRenderer } from '../beams';
+import { Cutscene } from '../cutscene';
 import { PAL } from '../art/palette';
 import { emissiveMat } from '../art/toon';
 
@@ -38,17 +39,48 @@ export class DockScene extends PlayScene {
     if (path.hitTarget && !this.solved) {
       this.solved = true;
       this.goalBlocker.enabled = false;
-      void this.ctx.audio.play('sparkle', 0.8);
-      void this.ctx.audio.play('win', 0.5);
-      this.ctx.hud.toast('THE SKY REMEMBERS. GO LOOK.', 3);
-      this.igniteConstellation();
-      this.ctx.camera.kick(0.3);
       const correct = Object.keys(CH5_SOLUTION).every((id) => states[id] === CH5_SOLUTION[id]);
-      if (!correct) {
-        // any valid routing counts — the solver found an alternate path
-        this.ctx.hud.toast('AN UNCONVENTIONAL ROUTING. RESPECT.', 2.5);
-      }
+      this.playIgnition(path, correct);
     }
+  }
+
+  /** the payoff: crane from the telescope up the beam into the igniting sky */
+  private playIgnition(path: import('../beams').BeamPath, canonical: boolean): void {
+    void this.ctx.audio.play('sparkle', 0.8);
+    const scope = new THREE.Vector3(CH5_TELESCOPE.x, 1.4, CH5_TELESCOPE.z);
+    const skyLook = new THREE.Vector3(0, 20, 40);
+    this.igniteConstellation();
+    if (this.constellation) {
+      // stars ignite sequentially during the crane
+      this.constellation.children.forEach((star, i) => {
+        star.visible = false;
+        setTimeout(() => {
+          star.visible = true;
+          if (i % 5 === 0) void this.ctx.audio.play('ding', 0.3, 1 + i * 0.02);
+        }, 1400 + i * 90);
+      });
+    }
+    // beam relay pings along the path
+    path.points.forEach((pt, i) => {
+      setTimeout(() => {
+        this.fx.burst(new THREE.Vector3(pt.x, 1.2, pt.z), 30, { colors: [0xfff6d8, 0x9db8ff], speed: 2.4, up: 2, life: 0.8 });
+        void this.ctx.audio.play('pop', 0.4, 1 + i * 0.08);
+      }, 250 * i);
+    });
+    this.cutscene = new Cutscene([
+      { t: 0, cam: { pos: scope.clone().add(new THREE.Vector3(-3, 1.2, -4)), look: scope, fov: 46 } },
+      { t: 0.8, cam: { pos: new THREE.Vector3(0, 6, -4), look: skyLook, fov: 60 }, glide: 2.4 },
+      {
+        t: 3.4,
+        do: (): void => {
+          this.ctx.hud.toast(canonical ? 'THE SKY REMEMBERS.' : 'AN UNCONVENTIONAL ROUTING. RESPECT.', 3);
+          void this.ctx.audio.play('win', 0.6);
+        },
+      },
+    ], 5.6, this.ctx.camera, this.ctx.cinema, () => {
+      this.cutscene = null;
+      this.ctx.camera.snapTo(this.player.pos);
+    });
   }
 
   private igniteConstellation(): void {
