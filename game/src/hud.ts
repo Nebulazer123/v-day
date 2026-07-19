@@ -128,6 +128,16 @@ export class Hud {
     mk('DASH', 'pounce', 96, 44);
     mk('USE', 'interact', 24, 170);
     mk('FIRE', 'fire', 96, 122);
+    // weapon swap: tap cycles the arsenal
+    const swap = document.createElement('div');
+    swap.className = 'dj-tbtn';
+    swap.textContent = 'SWAP';
+    swap.style.right = '170px';
+    swap.style.bottom = 'calc(190px + env(safe-area-inset-bottom))';
+    swap.style.width = '52px';
+    swap.style.height = '52px';
+    swap.addEventListener('pointerdown', (e) => { e.stopPropagation(); input.requestCycle(); });
+    this.touchLayer.appendChild(swap);
   }
 
   setHearts(cur: number, max: number): void {

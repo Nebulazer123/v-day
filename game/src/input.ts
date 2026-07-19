@@ -83,6 +83,11 @@ export class Input {
     document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
   }
 
+  /** Touch weapon-swap button. */
+  requestCycle(): void {
+    this.wheelDelta += 1;
+  }
+
   /** Touch HUD buttons report their state here. */
   setTouchButton(name: 'jump' | 'pounce' | 'interact' | 'fire', down: boolean): void {
     const was = this.touchButtons.get(name) ?? false;
