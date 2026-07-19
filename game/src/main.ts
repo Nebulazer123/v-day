@@ -38,6 +38,7 @@ const MAX_FRAME = 0.1;
 class Game {
   private ctx: GameContext;
   private current: Scene | null = null;
+  private currentName = '';
   private accumulator = 0;
   private lastTime = performance.now();
   private paused = false;
@@ -101,7 +102,7 @@ class Game {
       (window as unknown as Record<string, unknown>).__dj = {
         go: (n: SceneName, p?: Record<string, unknown>) => this.go(n, p),
         state: () => ({
-          scene: this.current?.constructor.name,
+          scene: this.currentName,
           paused: this.paused,
           save: this.ctx.save.data,
         }),
@@ -126,8 +127,10 @@ class Game {
       if (name === 'play' && levelId && LEVELS[levelId]) {
         const mods = Array.isArray(params?.mods) ? (params!.mods as string[]) : [];
         this.current = LEVELS[levelId](this.ctx, mods);
+        this.currentName = `play:${levelId}`;
       } else {
         this.current = new HubScene(this.ctx);
+        this.currentName = 'hub';
       }
       this.ctx.hud.fade(false);
     };

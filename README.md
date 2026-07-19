@@ -45,9 +45,28 @@ Static — deploys anywhere. This repo is set up for **Vercel** (`vercel.json` a
 `noindex` header + robots.txt so the link stays unlisted). Push the branch, import to Vercel,
 done — or use the Vercel CLI. Send her the link. Best opened on a phone.
 
+## THE DUCK JOB — the 3D game
+
+A full 3D chapter in the arcade: **THE DUCK JOB** (`game/`), a Three.js +
+TypeScript action-puzzle adventure. The ducks shred Corbin's letter over the
+Victory Red C6; Bentley drives the midnight highway and takes it back through
+seven chapters (gym → Lincoln → Hayden's toll → beach → dock & stars →
+twilight forest → sunrise). Real puzzles, four secret weapons, secret rooms,
+21 golden ducks, a pearl economy with Grandma's Diner shop + gear + duck
+bounties, cinematic cutscenes, and a lowercase letter at sunrise.
+
+- Play: the **NEW CABINET** in the arcade, or open `game/dist/index.html`.
+- Desktop first (WASD/Space/Shift/E/mouse, gamepad works); touch controls ship
+  for phones. ULTRA render tier auto-selected on desktop.
+- Dev: `cd game && npm ci && npm run dev` · tests `npm run test` · build
+  `npm run build` (the built `game/dist/` is committed, so hosting stays static).
+
 ## Undocumented
 
 - `?skipto=finale` (or `gate`/`loading`/`quiz`/`arcadehub`) jumps straight to a screen.
 - Konami code (↑↑↓↓←→←→BA), or tap the ♥ logo 7×, for DUCK MODE.
+- In THE DUCK JOB: tap the four screen corners then the center for DUCK MODE
+  there too (it unlocks something). Drive backwards. Click the dog. Press H
+  when a cookie is in your pocket.
 
 _© corbin & the ducks · est. august 2023 · lincoln survivors club, members: 2 (+1 dog)_

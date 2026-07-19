@@ -216,6 +216,19 @@
       }
       railEl.appendChild(card);
     });
+
+    // NEW CABINET: the 3D game lives at game/dist/ and opens in its own tab
+    const dj = document.createElement('a');
+    dj.className = 'hub__cabinet';
+    dj.href = 'game/dist/index.html';
+    dj.style.textDecoration = 'none';
+    dj.innerHTML = `
+      <div class="hub__cabinetnum">NEW CABINET · 3D</div>
+      <div class="hub__cabinetname">THE DUCK JOB 🦆🚗</div>
+      <div class="hub__ribbon">INSERT COIN</div>
+    `;
+    railEl.appendChild(dj);
+
     renderProgress(orderArr);
   }
 
