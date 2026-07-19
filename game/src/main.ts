@@ -119,7 +119,8 @@ class Game {
       this.current?.dispose();
       const levelId = typeof params?.id === 'string' ? params.id : null;
       if (name === 'play' && levelId && LEVELS[levelId]) {
-        this.current = LEVELS[levelId](this.ctx);
+        const mods = Array.isArray(params?.mods) ? (params!.mods as string[]) : [];
+        this.current = LEVELS[levelId](this.ctx, mods);
       } else {
         this.current = new HubScene(this.ctx);
       }

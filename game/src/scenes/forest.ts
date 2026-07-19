@@ -21,8 +21,8 @@ export class ForestScene extends PlayScene {
   private yeeted = false;
   private goalBlocker: import('../world').Collider;
 
-  constructor(ctx: GameContext) {
-    super(ctx, ch6());
+  constructor(ctx: GameContext, mods: string[] = []) {
+    super(ctx, ch6(), mods);
 
     // pines everywhere (visual density; big ones get colliders via rocks already)
     const rng = ((): (() => number) => { let a = 11; return () => ((a = (a * 16807) % 2147483647) / 2147483647); })();

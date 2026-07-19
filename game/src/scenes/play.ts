@@ -16,6 +16,7 @@ import { Weapons, WEAPON_NAMES } from '../weapons';
 import { PatrolDuck, Crab, Wisp, Drone, type Enemy } from '../enemies';
 import { Fx } from '../fx';
 import { Cutscene } from '../cutscene';
+import { scoreRun, betterMedal, type RunResult } from '../economy';
 
 interface Pickup {
   obj: THREE.Object3D;
@@ -25,6 +26,15 @@ interface Pickup {
   needs?: WeaponId;
   taken: boolean;
 }
+
+const HINTS: Record<string, string> = {
+  ch1: 'GRANDMA SAYS: 3 = 3. THE DOG COUNTS AS ONE.',
+  ch2: 'GRANDMA SAYS: EVERY WIRE ARM MUST POINT AT THE NEXT ROTOR.',
+  ch3: 'GRANDMA SAYS: 2+2+2+1. LEAVE THE BIG COIN. HE WANTS YOU TO OVERPAY.',
+  ch4: 'GRANDMA SAYS: LOW TIDE TO PUSH. HIGH TIDE TO FLOAT. MID TO THINK.',
+  ch5: 'GRANDMA SAYS: SLASH, SLASH, BACKSLASH, BACKSLASH, SLASH.',
+  ch6: 'GRANDMA SAYS: THE ANKH SHOWS THE SOCKETS. HIDE BEHIND ROCKS.',
+};
 
 interface HazardRect {
   min: THREE.Vector3;
@@ -64,8 +74,18 @@ export class PlayScene implements Scene {
   private slotTargets: Record<string, number> = {};
   protected fx!: Fx;
   protected cutscene: Cutscene | null = null;
+  protected mods: Set<string>;
+  private pearlsThisRun = 0;
+  private ducksThisRun = 0;
+  private secretThisRun = false;
+  private snackRamen = false;
+  private snackShield = 0;
+  private snackCookie = 0;
+  private secondWind = false;
+  private hintsUsed = 0;
 
-  constructor(protected ctx: GameContext, protected def: LevelDef) {
+  constructor(protected ctx: GameContext, protected def: LevelDef, mods: string[] = []) {
+    this.mods = new Set(mods);
     for (const r of def.logic ?? []) {
       if ('paidExact' in r.when) this.slotTargets[r.when.paidExact.slot] = r.when.paidExact.amount;
     }
@@ -95,6 +115,7 @@ export class PlayScene implements Scene {
     this.scene.add(sun);
 
     this.player = new Player();
+    this.player.applyCosmetics(ctx.save.data.gear.owned, !!ctx.save.data.secrets.halo);
     this.scene.add(this.player.rig.group);
     this.weapons = new Weapons(this.scene);
     this.weapons.setLoadout(ctx.save.data.weapons, ctx.save.data.weaponTiers);
@@ -109,6 +130,30 @@ export class PlayScene implements Scene {
 
     for (const e of def.entities) this.spawnEntity(e);
 
+    // ---- gear + bounty modifiers
+    const gear = ctx.save.data.gear;
+    const charms = gear.charms;
+    if (gear.collar === 'foam') this.maxHearts += 1;
+    if (gear.collar === 'duckdown') { this.maxHearts += 2; this.player.cfg.speedMultiplier *= 0.9; }
+    if (gear.collar === 'racing') { this.maxHearts = Math.max(1, this.maxHearts - 1); this.player.cfg.speedMultiplier *= 1.15; }
+    if (charms.includes('slowpaw')) this.player.cfg.pounceCooldown *= 0.6;
+    this.secondWind = charms.includes('secondwind');
+    this.snackRamen = gear.snacks.includes('ramen');
+    this.snackShield = gear.snacks.includes('bobaShield') ? 2 : 0;
+    this.snackCookie = gear.snacks.includes('cookie') ? 1 : 0;
+    if (this.mods.has('oneHeart')) this.maxHearts = 1;
+    if (this.mods.has('noWeapons')) this.weapons.setLoadout([], {});
+    if (this.mods.has('fogRolls')) (this.scene.fog as THREE.FogExp2).density = (def.fogDensity ?? 0.016) * 2.2;
+    if (this.mods.has('doubleDucks')) {
+      for (const e of def.entities) {
+        if (e.type === 'duck') {
+          const pts = (e.patrol ?? [e.pos]).map((q) => new THREE.Vector3(q.x + 1.5, q.y, q.z + 1.5));
+          this.addEnemy(new PatrolDuck(pts, (e.speed ?? 2.2) * 1.2));
+        }
+      }
+    }
+    this.hearts = this.maxHearts;
+
     this.player.spawnAt(this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, this.spawnYaw);
     ctx.camera.configure(def.cameraZones, def.cameraOffset);
     ctx.camera.snapTo(this.player.pos);
@@ -116,7 +161,21 @@ export class PlayScene implements Scene {
     ctx.hud.setHearts(this.hearts, this.maxHearts);
     this.fx = new Fx(this.scene);
     void ctx.audio.play('levelstart', 0.5);
+
+    // grandma's cookie: [H] spends a hint
+    this.hintKey = (e: KeyboardEvent): void => {
+      if (e.code !== 'KeyH') return;
+      if (this.snackCookie > this.hintsUsed) {
+        this.hintsUsed++;
+        this.ctx.hud.toast(HINTS[this.def.id] ?? 'FOLLOW THE GLOW. TRUST THE DOG.', 4.5);
+        void this.ctx.audio.play('ding', 0.6);
+      } else if (this.snackCookie > 0) {
+        this.ctx.hud.toast('COOKIE ALREADY EATEN.', 1.6);
+      }
+    };
+    addEventListener('keydown', this.hintKey);
   }
+  private hintKey!: (e: KeyboardEvent) => void;
 
   private spawnEntity(e: EntityDef): void {
     const v = (p: { x: number; y: number; z: number }): THREE.Vector3 => new THREE.Vector3(p.x, p.y, p.z);
@@ -321,11 +380,14 @@ export class PlayScene implements Scene {
       this.ctx.hud.toast('LETTER PIECE RECOVERED ✉', 2.2);
       void this.ctx.audio.play('sparkle', 0.7);
     } else if (p.kind === 'goldenDuck' && p.id !== undefined) {
+      this.ducksThisRun++;
       this.ctx.save.patch((d) => { if (!d.ducks.includes(p.id!)) d.ducks.push(p.id!); });
       this.ctx.hud.toast(`GOLDEN DUCK ${this.ctx.save.data.ducks.length}/21`, 2.2);
       void this.ctx.audio.play('quack', 0.7, 0.8);
     } else if (p.kind === 'pearl') {
-      this.ctx.save.patch((d) => { d.pearls += 1; });
+      const v = this.mods.has('greed') ? 2 : 1;
+      this.pearlsThisRun += v;
+      this.ctx.save.patch((d) => { d.pearls += v; });
       this.ctx.hud.setPearls(this.ctx.save.data.pearls);
       void this.ctx.audio.play('coin', 0.4);
     } else if (p.kind === 'weapon' && p.weapon) {
@@ -386,18 +448,58 @@ export class PlayScene implements Scene {
     this.scene.add(e.obj);
   }
 
-  protected hurt(_kind: string): void {
+  protected hurt(kind: string): void {
     if (this.iframes > 0 || this.done) return;
+    // puffer vest: environmental falls/water are free (respawn still happens)
+    if ((kind === 'water' || kind === 'fall' || kind === 'mud') && this.ctx.save.data.gear.collar === 'puffer') {
+      this.iframes = 0.8;
+      void this.ctx.audio.play('splash', 0.3);
+      return;
+    }
+    if (this.mods.has('greed')) {
+      const tax = Math.min(5, this.ctx.save.data.pearls);
+      this.ctx.save.patch((d) => { d.pearls -= tax; });
+      this.ctx.hud.setPearls(this.ctx.save.data.pearls);
+    }
+    if (this.snackShield > 0) {
+      this.snackShield--;
+      this.iframes = 1.2;
+      this.ctx.hud.toast(`BOBA SHIELD ABSORBED IT. ${this.snackShield} LEFT.`, 1.6);
+      void this.ctx.audio.play('pop', 0.6);
+      return;
+    }
     this.hearts -= 1;
     this.iframes = 1.2;
+    if (this.hearts === 1 && this.snackRamen) {
+      this.snackRamen = false;
+      this.hearts = this.maxHearts;
+      this.ctx.hud.toast('RAMEN CUP. FULLY RESTORED. 🍜', 2);
+      void this.ctx.audio.play('correct', 0.7);
+    }
+    if (this.hearts <= 0 && this.secondWind) {
+      this.secondWind = false;
+      this.hearts = 1;
+      this.ctx.hud.toast('SECOND WIND. ONE MORE CHANCE.', 2.2);
+      void this.ctx.audio.play('sparkle', 0.8);
+    }
     this.deaths += this.hearts <= 0 ? 1 : 0;
     this.ctx.hud.setHearts(Math.max(0, this.hearts), this.maxHearts);
     void this.ctx.audio.play('hit', 0.55);
     this.ctx.camera.kick(0.4);
     if (this.hearts <= 0) {
-      // run ends — soft: refill and restart the chapter (economy sting later)
+      // run over: keep 60% of this run's pearls, refill, restart chapter
       void this.ctx.audio.play('powerdown', 0.6);
-      this.ctx.hud.toast('RUN OVER. THE DUCKS ARE LAUGHING.', 2.6);
+      const sting = Math.ceil(this.pearlsThisRun * 0.4);
+      if (sting > 0) {
+        this.ctx.save.patch((d) => { d.pearls = Math.max(0, d.pearls - sting); });
+        this.ctx.hud.setPearls(this.ctx.save.data.pearls);
+        this.ctx.hud.toast(`RUN OVER. THE DUCKS TOOK ${sting} ⬤.`, 2.6);
+      } else {
+        this.ctx.hud.toast('RUN OVER. THE DUCKS ARE LAUGHING.', 2.6);
+      }
+      this.pearlsThisRun = 0;
+      this.snackShield = this.ctx.save.data.gear.snacks.includes('bobaShield') ? 2 : 0;
+      this.snackRamen = this.ctx.save.data.gear.snacks.includes('ramen');
       this.hearts = this.maxHearts;
       this.ctx.hud.setHearts(this.hearts, this.maxHearts);
       this.respawn();
@@ -430,6 +532,9 @@ export class PlayScene implements Scene {
 
     this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
     if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3);
+    if (this.player.trail !== null && Math.hypot(this.player.state.vx, this.player.state.vz) > 3 && Math.random() < dt * 20) {
+      this.fx.burst(this.player.pos.clone().setY(this.player.pos.y + 0.4), 1, { colors: [this.player.trail], speed: 0.4, up: 0.8, gravity: 0.4, life: 0.7 });
+    }
     if (this.player.events.landed) {
       void this.ctx.audio.play('land', 0.22);
       this.fx.burst(this.player.pos, 10, { colors: [0x8a93b8], speed: 1.6, up: 0.8, life: 0.4 });
@@ -439,8 +544,9 @@ export class PlayScene implements Scene {
       this.ctx.camera.kick(0.15);
       this.fx.burst(this.player.pos, 14, { colors: [0x8a93b8], speed: 2, up: 1, life: 0.5 });
       // pounce bonks
+      const bonkR = this.ctx.save.data.gear.charms.includes('barkAmp') ? 2.6 : 1.2;
       for (const e of this.enemies) {
-        if (e.alive && e.obj.position.distanceTo(this.player.pos) < 1.2) {
+        if (e.alive && e.obj.position.distanceTo(this.player.pos) < bonkR) {
           if (e.bonk(new THREE.Vector3(this.player.state.facingX, 0, this.player.state.facingZ))) {
             void this.ctx.audio.play('quack', 0.6);
           }
@@ -602,6 +708,7 @@ export class PlayScene implements Scene {
         const m = s.mesh.material as THREE.MeshLambertMaterial;
         m.transparent = true;
         m.opacity = 0.3;
+        this.secretThisRun = true;
         this.ctx.hud.toast('SECRET ROOM. OBVIOUSLY.', 2.4);
         void this.ctx.audio.play('sparkle', 0.6);
         this.ctx.save.patch((dd) => { dd.secrets[`${this.def.id}-room`] = true; });
@@ -612,10 +719,28 @@ export class PlayScene implements Scene {
       }
     }
 
+    // scout charm: ping when an unfound secret is near
+    if (this.ctx.save.data.gear.charms.includes('scout')) {
+      for (const s of this.secretWalls) {
+        if (!s.found && s.mesh.position.distanceTo(this.player.pos) < 6) {
+          if (Math.floor(this.runTime * 0.5) !== Math.floor((this.runTime - dt) * 0.5)) {
+            void this.ctx.audio.play('ding', 0.25, 1.6);
+          }
+        }
+      }
+    }
+
     // pickups
+    const magnet = this.ctx.save.data.gear.charms.includes('magnet');
     for (const p of this.pickups) {
       if (p.taken) continue;
       p.obj.rotation.y += dt * 2;
+      if (magnet && p.kind === 'pearl') {
+        const d = p.obj.position.distanceTo(this.player.pos);
+        if (d < 4 && d > 0.9) {
+          p.obj.position.lerp(this.player.pos.clone().setY(this.player.pos.y + 0.5), dt * 4);
+        }
+      }
       if (p.obj.position.distanceTo(this.player.pos) < 1.1) {
         if (p.kind === 'goldenDuck' && p.needs && !this.ctx.save.data.weapons.includes(p.needs)) {
           this.ctx.hud.toast(`THIS DUCK RESPECTS ONLY THE ${WEAPON_NAMES[p.needs]}.`, 2);
@@ -649,17 +774,85 @@ export class PlayScene implements Scene {
     if (this.done) return;
     this.done = true;
     void this.ctx.audio.play('win', 0.7);
-    const first = !this.ctx.save.data.chaptersDone.includes(this.def.id);
-    this.ctx.save.patch((d) => {
+    const save = this.ctx.save;
+    const first = !save.data.chaptersDone.includes(this.def.id);
+    const par = this.mods.has('rushHour') ? this.def.parSeconds * 0.7 : this.def.parSeconds;
+    const result = scoreRun(
+      {
+        timeSeconds: this.runTime,
+        parSeconds: par,
+        deaths: this.deaths,
+        ducksThisRun: this.ducksThisRun,
+        secretFound: this.secretThisRun,
+        bounty: this.mods.size > 0,
+        modifierCount: this.mods.size,
+      },
+      first,
+      save.data.gear.charms.includes('pearlcut')
+    );
+    const prev = save.data.grades[this.def.id];
+    const improved = betterMedal(result.medal, prev?.medal);
+    save.patch((d) => {
       if (!d.chaptersDone.includes(this.def.id)) d.chaptersDone.push(this.def.id);
-      d.pearls += first ? 100 : 25;
+      d.pearls += result.payout;
+      if (this.mods.size > 0) d.bountiesCleared += 1;
+      // snacks are consumed by a completed run
+      d.gear.snacks = [];
+      const g = d.grades[this.def.id];
+      d.grades[this.def.id] = {
+        medal: improved ? result.medal : (g?.medal ?? result.medal),
+        bestScore: Math.max(g?.bestScore ?? 0, result.score),
+        bestTime: Math.min(g?.bestTime ?? Infinity, this.runTime),
+      };
+      if (this.def.id === 'ch7' && this.deaths === 0) d.secrets.halo = true;
     });
-    this.ctx.hud.setPearls(this.ctx.save.data.pearls);
-    this.ctx.hud.toast(first ? 'CHAPTER CLEAR. +100 ⬤' : 'CHAPTER CLEAR AGAIN. +25 ⬤', 3);
-    setTimeout(() => this.ctx.go('hub'), 1800);
+    this.ctx.hud.setPearls(save.data.pearls);
+    this.showTally(result, first, improved, prev?.bestScore ?? 0);
+  }
+
+  private showTally(result: RunResult, first: boolean, improved: boolean, prevBest: number): void {
+    const o = this.ctx.hud.overlay();
+    const medalColor: Record<string, string> = { C: '#8a93b8', B: '#c8cdd6', GOLD: '#FFB627', S: '#FF4D8D' };
+    const rows = result.breakdown
+      .map((b) => `<div style="display:flex;justify-content:space-between;gap:40px;font-family:'Space Grotesk',monospace"><span>${b.label}</span><b data-count="${b.value}">0</b></div>`)
+      .join('');
+    o.innerHTML = `
+      <h1 style="letter-spacing:6px">${this.def.name}</h1>
+      <div class="dj-card" style="min-width:300px;display:flex;flex-direction:column;gap:8px;padding:18px 22px">${rows}
+        <hr style="border-color:rgba(255,255,255,0.15)" />
+        <div style="display:flex;justify-content:space-between"><span>SCORE</span><b data-count="${result.score}">0</b></div>
+        <div style="display:flex;justify-content:space-between"><span>PAYOUT</span><b style="color:#B388EB" data-count="${result.payout}">0</b></div>
+      </div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:44px;font-weight:700;color:${medalColor[result.medal]};letter-spacing:8px">${result.medal === 'S' ? 'S RANK' : result.medal}</div>
+      ${result.score > prevBest && prevBest > 0 ? '<div style="color:#33FF88;font-weight:800">NEW BEST</div>' : ''}
+      ${first ? '<div style="color:#FFB627">FIRST CLEAR +100 ⬤</div>' : ''}
+      <button class="dj-btn" data-a="go">BACK TO THE HIGHWAY</button>
+    `;
+    // slot-machine count-up
+    const counters = [...o.querySelectorAll('[data-count]')] as HTMLElement[];
+    const t0 = performance.now();
+    const tick = (): void => {
+      const k = Math.min(1, (performance.now() - t0) / 1400);
+      for (const c of counters) {
+        const target = Number(c.dataset.count);
+        c.textContent = String(Math.round(target * (k < 1 ? k * k : 1)));
+      }
+      if (k < 1) requestAnimationFrame(tick);
+      else if (improved) {
+        void this.ctx.audio.play('fanfare', 0.5);
+        this.fx.burst(this.player.pos.clone().setY(this.player.pos.y + 2), 120, { speed: 5, up: 4, life: 1.6 });
+      }
+    };
+    tick();
+    void this.ctx.audio.play('register', 0.5);
+    o.querySelector('[data-a="go"]')!.addEventListener('click', () => {
+      o.remove();
+      this.ctx.go('hub');
+    });
   }
 
   dispose(): void {
+    removeEventListener('keydown', this.hintKey);
     this.ctx.hud.prompt(null);
   }
 }

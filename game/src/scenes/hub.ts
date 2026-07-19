@@ -12,6 +12,8 @@ import { PAL } from '../art/palette';
 import { makeDuck, makeHeartPiece } from '../art/kit';
 import { Fx } from '../fx';
 import { Cutscene } from '../cutscene';
+import { openShop } from '../shop';
+import { offerBounties } from '../economy';
 import type { GameContext, Scene } from '../main';
 
 const CAR_SEAT = new THREE.Vector3(0, 0.6, -0.2);
@@ -30,6 +32,9 @@ export class HubScene implements Scene {
   private fx: Fx;
   private cutscene: Cutscene | null = null;
   private heroDone = false;
+  private shopOpen = false;
+  private hornTaps = 0;
+  private hornTimer = 0;
 
   constructor(private ctx: GameContext) {
     const def = hubDef();
@@ -115,8 +120,25 @@ export class HubScene implements Scene {
     this.scene.add(this.car.rig.group);
 
     this.player = new Player();
+    this.player.applyCosmetics(ctx.save.data.gear.owned, !!ctx.save.data.secrets.halo);
     this.player.spawnAt(-2, 0, 2, Math.PI / 2);
     this.scene.add(this.player.rig.group);
+
+    // C6 garage cosmetics
+    const owned = ctx.save.data.gear.owned;
+    if (owned.includes('underglowPink') || owned.includes('underglowGold')) {
+      const glow = new THREE.PointLight(owned.includes('underglowPink') ? PAL.heartNeon : PAL.ramenGold, 24, 6, 1.4);
+      glow.position.set(0, 0.12, 0);
+      this.car.rig.group.add(glow);
+    }
+    if (owned.includes('chromeDuck')) {
+      const orn = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), new THREE.MeshLambertMaterial({ color: 0xf2f4f8, emissive: 0x555c66 }));
+      orn.position.set(0, 0.72, 2.3);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshLambertMaterial({ color: 0xf2f4f8, emissive: 0x555c66 }));
+      head.position.set(0, 0.82, 2.34);
+      this.car.rig.group.add(orn, head);
+    }
+    if (owned.includes('racing')) this.car.speedMultiplier = 1.15;
 
     ctx.camera.configure([], { x: 0, y: 5.2, z: -7.5 });
     ctx.camera.snapTo(this.player.pos);
@@ -245,6 +267,7 @@ export class HubScene implements Scene {
 
   update(dt: number): void {
     this.fx.update(dt);
+    if (this.shopOpen) return;
     if (this.cutscene && !this.cutscene.done) {
       this.cutscene.update(dt);
       this.sky.update(dt);
@@ -267,9 +290,18 @@ export class HubScene implements Scene {
         this.fx.burst(this.player.pos, 10, { colors: [0x8a93b8], speed: 1.6, up: 0.8, life: 0.4 });
       }
 
-      // enter car?
+      // enter car? visit the diner?
       const distToCar = this.player.pos.distanceTo(this.car.rig.group.position);
-      this.ctx.hud.prompt(distToCar < 3.2 ? '[E] TAKE THE CORVETTE' : null);
+      const dinerPos = new THREE.Vector3(-(ROAD_HALF + 8), 0, DINER_Z);
+      const nearDiner = this.player.pos.distanceTo(dinerPos) < 6;
+      if (nearDiner) this.ctx.hud.prompt("[E] GRANDMA'S DINER (SHOP)");
+      else this.ctx.hud.prompt(distToCar < 3.2 ? '[E] TAKE THE CORVETTE' : null);
+      if (nearDiner && intents.interact) {
+        this.shopOpen = true;
+        void this.ctx.audio.play('insertcoin', 0.5);
+        openShop(this.ctx, () => { this.shopOpen = false; });
+        return;
+      }
       if (distToCar < 3.2 && intents.interact) {
         this.mode = 'drive';
         this.player.rig.group.visible = false;
@@ -309,6 +341,20 @@ export class HubScene implements Scene {
         void this.ctx.audio.play('ding', 0.6);
       }
 
+      // horn (the ducks respect it)
+      if (intents.fire) {
+        const owned2 = this.ctx.save.data.gear.owned;
+        void this.ctx.audio.play(owned2.includes('hornQuack') ? 'quack' : owned2.includes('hornBark') ? 'bark' : 'boing', 0.7, owned2.includes('hornQuack') || owned2.includes('hornBark') ? 1 : 0.6);
+        this.hornTaps++;
+        clearTimeout(this.hornTimer);
+        this.hornTimer = window.setTimeout(() => { this.hornTaps = 0; }, 1200);
+        if (this.hornTaps >= 3) {
+          this.hornTaps = 0;
+          this.ctx.hud.toast('♥ ♥ ♥ (the horn knows the rhythm)', 2);
+          this.fx.burst(this.car.rig.group.position.clone().setY(1.4), 30, { colors: [PAL.heartNeon], speed: 3, up: 3, life: 1 });
+        }
+      }
+
       // get out
       this.ctx.hud.prompt(Math.abs(this.car.state.speed) < 1.5 ? '[E] HOP OUT' : null);
       if (intents.interact && Math.abs(this.car.state.speed) < 1.5) {
@@ -328,7 +374,11 @@ export class HubScene implements Scene {
               this.exitCooldown = 99;
               this.ctx.audio.engine(false);
               void this.ctx.audio.play('insertcoin', 0.6);
-              this.ctx.go('play', { id: e.id });
+              if (this.ctx.save.data.chaptersDone.includes(e.id)) {
+                this.offerRun(e.id, e.name);
+              } else {
+                this.ctx.go('play', { id: e.id });
+              }
               return;
             } else {
               this.ctx.hud.toast('EXIT LOCKED. FINISH THE PREVIOUS CHAPTER.', 2.2);
@@ -351,6 +401,41 @@ export class HubScene implements Scene {
     }
 
     if (intents.pause) this.ctx.togglePause();
+  }
+
+  /** cleared chapter: story rerun or a duck bounty (pick 1 of 3 mod pairs) */
+  private offerRun(id: string, name: string): void {
+    const seed = Number(id.slice(2)) * 13 + this.ctx.save.data.bountiesCleared;
+    const offers = offerBounties(seed);
+    const o = this.ctx.hud.overlay();
+    const offerHtml = offers
+      .map((pair, i) => `<button class="dj-btn" data-b="${i}" style="min-width:280px">
+        🦆 ${pair[0].name} + ${pair[1].name}<br/>
+        <span style="font-size:11px;opacity:0.7">${pair[0].desc} · ${pair[1].desc}</span><br/>
+        <span style="color:#B388EB;font-size:12px">bonus pearls +80</span></button>`)
+      .join('');
+    o.innerHTML = `
+      <h1 style="letter-spacing:4px">${name}</h1>
+      <button class="dj-btn" data-a="story" style="min-width:280px">STORY RERUN<br/><span style="font-size:11px;opacity:0.7">no modifiers, chase the S rank</span></button>
+      <div style="font-family:'Space Grotesk';letter-spacing:3px;color:#FFD23F;margin-top:8px">DUCK BOUNTIES</div>
+      ${offerHtml}
+      <button class="dj-btn" data-a="never">NEVER MIND</button>
+    `;
+    o.querySelector('[data-a="story"]')!.addEventListener('click', () => {
+      o.remove();
+      this.ctx.go('play', { id });
+    });
+    o.querySelector('[data-a="never"]')!.addEventListener('click', () => {
+      o.remove();
+      this.exitCooldown = 3;
+    });
+    o.querySelectorAll('[data-b]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const pair = offers[Number((b as HTMLElement).dataset.b)];
+        o.remove();
+        this.ctx.go('play', { id, mods: [pair[0].id, pair[1].id] });
+      });
+    });
   }
 
   dispose(): void {

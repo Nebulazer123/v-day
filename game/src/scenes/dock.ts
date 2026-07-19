@@ -16,8 +16,8 @@ export class DockScene extends PlayScene {
   private constellation: THREE.Group | null = null;
   private goalBlocker: import('../world').Collider;
 
-  constructor(ctx: GameContext) {
-    super(ctx, ch5());
+  constructor(ctx: GameContext, mods: string[] = []) {
+    super(ctx, ch5(), mods);
     this.scene.add(this.beam.group);
     // invisible wall before the telescope stand until solved
     this.goalBlocker = this.world.addCollider({

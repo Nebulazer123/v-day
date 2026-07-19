@@ -15,8 +15,8 @@ export class BeachScene extends PlayScene {
   private waterY = CH4_WATER.low;
   private announced = -1;
 
-  constructor(ctx: GameContext) {
-    super(ctx, ch4());
+  constructor(ctx: GameContext, mods: string[] = []) {
+    super(ctx, ch4(), mods);
     this.water = new THREE.Mesh(
       new THREE.PlaneGeometry(60, 40),
       new THREE.MeshLambertMaterial({

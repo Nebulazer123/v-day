@@ -3,6 +3,8 @@
 
 import * as THREE from 'three';
 import { makeBentley, type BentleyRig } from './art/kit';
+import { mat } from './art/toon';
+import { PAL } from './art/palette';
 import { DEFAULT_MOVE, initialMoveState, stepMove, type MoveConfig, type MoveState } from './movement';
 import type { World } from './world';
 import type { Intents } from './input';
@@ -22,6 +24,48 @@ export class Player {
   constructor() {
     this.rig = makeBentley();
   }
+
+  /** All owned cosmetics are worn at once. This is intentional and funny. */
+  applyCosmetics(owned: string[], halo: boolean): void {
+    const head = this.rig.head;
+    if (owned.includes('cap')) {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.28, 0.14, 10), mat(PAL.victoryRed, { flatShading: false }));
+      cap.position.set(0, 0.26, -0.02);
+      const brim = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.04, 0.24), mat(PAL.victoryRed, { flatShading: false }));
+      brim.position.set(0, 0.22, -0.3); // backwards. obviously.
+      head.add(cap, brim);
+    }
+    if (owned.includes('sunglasses')) {
+      const shades = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.09, 0.05), mat(0x090a12, { gloss: 0.9, flatShading: false }));
+      shades.position.set(0, 0.08, 0.24);
+      head.add(shades);
+    }
+    if (owned.includes('glasses')) {
+      for (const s of [-1, 1]) {
+        const lens = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.015, 6, 12), mat(0xc8cdd6, { gloss: 0.6, flatShading: false }));
+        lens.position.set(0.12 * s, 0.08, 0.25);
+        head.add(lens);
+      }
+    }
+    if (owned.includes('bandana')) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.16, 8), mat(PAL.taroPurple, { flatShading: false }));
+      b.position.set(0, -0.22, 0);
+      head.add(b);
+    }
+    if (owned.includes('crown')) {
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.24, 0.18, 8), mat(PAL.ramenGold, { emissive: PAL.ramenGold, emissiveIntensity: 0.6, gloss: 0.9, flatShading: false }));
+      c.position.set(0, 0.32, 0);
+      head.add(c);
+    }
+    if (halo) {
+      const h = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.03, 8, 18), mat(PAL.star, { emissive: PAL.star, emissiveIntensity: 1.6 }));
+      h.rotation.x = Math.PI / 2;
+      h.position.set(0, 0.48, 0);
+      head.add(h);
+    }
+    this.trail = owned.includes('trailHearts') ? PAL.heartNeon : owned.includes('trailStars') ? PAL.star : null;
+  }
+  trail: number | null = null;
 
   spawnAt(x: number, y: number, z: number, yaw = 0): void {
     this.pos.set(x, y, z);
