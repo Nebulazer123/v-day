@@ -8,7 +8,6 @@ import { Save } from './save';
 import { Hud } from './hud';
 import { GameCamera } from './camera';
 import { HubScene } from './scenes/hub';
-import { PlayScene } from './scenes/play';
 import { LEVELS } from './levels/index';
 
 export interface Scene {
@@ -117,7 +116,7 @@ class Game {
       this.current?.dispose();
       const levelId = typeof params?.id === 'string' ? params.id : null;
       if (name === 'play' && levelId && LEVELS[levelId]) {
-        this.current = new PlayScene(this.ctx, LEVELS[levelId]());
+        this.current = LEVELS[levelId](this.ctx);
       } else {
         this.current = new HubScene(this.ctx);
       }

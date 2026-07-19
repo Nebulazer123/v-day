@@ -63,7 +63,9 @@ export interface CameraZone {
 export type LogicRule =
   | { when: { plates: string[] }; open: string }   // all plates satisfied -> door/lift id active
   | { when: { switches: string[] }; open: string } // all switch targets hit
-  | { when: { key: true }; open: string };         // player carries the key near the door
+  | { when: { key: true }; open: string }          // player carries the key near the door
+  | { when: { rotors: Record<string, number> }; open: string }        // each rotor at its target state
+  | { when: { paidExact: { slot: string; amount: number } }; open: string }; // exact sum deposited
 
 export interface LevelDef {
   id: string;

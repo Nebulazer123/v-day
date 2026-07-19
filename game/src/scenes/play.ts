@@ -52,8 +52,19 @@ export class PlayScene implements Scene {
   private switchLatch: Record<string, boolean> = {};
   private done = false;
   protected drone: Drone | null = null;
+  protected rotors: { id: string; obj: THREE.Group; states: number; state: number; kind: 'barrier' | 'mirror' }[] = [];
+  protected slots: { id: string; obj: THREE.Group; sum: number; label: THREE.Mesh }[] = [];
+  protected valves: { id: string; obj: THREE.Group; state: number }[] = [];
+  protected zones: { id: string; pos: THREE.Vector3; radius: number; label: string; used: boolean }[] = [];
+  /** chapter hook: an interact zone was triggered */
+  protected onZone: ((id: string) => void) | null = null;
+  /** exact amounts per slot (from logic rules) for overpay detection */
+  private slotTargets: Record<string, number> = {};
 
   constructor(protected ctx: GameContext, protected def: LevelDef) {
+    for (const r of def.logic ?? []) {
+      if ('paidExact' in r.when) this.slotTargets[r.when.paidExact.slot] = r.when.paidExact.amount;
+    }
     this.world = new World(def);
     this.scene.add(this.world.group);
     this.scene.fog = new THREE.FogExp2(PAL.midnight, def.fogDensity ?? 0.016);
@@ -201,6 +212,56 @@ export class PlayScene implements Scene {
         this.weapons.addSwitchTarget(e.id, v(e.pos));
         this.switchLatch[e.id] = false;
         break;
+      case 'rotor': {
+        const g = new THREE.Group();
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 0.5, 10), mat(0x2a3352));
+        base.position.y = 0.25;
+        g.add(base);
+        // glowing wire arm shows routing direction
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 2.4), emissiveMat(PAL.ramenGold, 1.3));
+        arm.position.y = 0.6;
+        g.add(arm);
+        const state = e.state ?? 0;
+        g.rotation.y = (state * Math.PI * 2) / e.states;
+        g.position.copy(v(e.pos));
+        this.scene.add(g);
+        this.rotors.push({ id: e.id, obj: g, states: e.states, state, kind: e.kind });
+        break;
+      }
+      case 'slot': {
+        const g = new THREE.Group();
+        const booth = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.3, 1.2), mat(0x3a4468));
+        booth.position.y = 0.65;
+        g.add(booth);
+        const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.3), emissiveMat(PAL.ramenGold, 1.5));
+        mouth.position.set(0, 1.36, 0);
+        g.add(mouth);
+        const label = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.5), new THREE.MeshBasicMaterial({ transparent: true }));
+        label.position.set(0, 1.9, 0);
+        g.add(label);
+        g.position.copy(v(e.pos));
+        this.scene.add(g);
+        this.slots.push({ id: e.id, obj: g, sum: 0, label });
+        this.updateSlotLabel(this.slots[this.slots.length - 1]);
+        break;
+      }
+      case 'valve': {
+        const g = new THREE.Group();
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 1, 8), mat(0x3a4468));
+        post.position.y = 0.5;
+        g.add(post);
+        const wheel = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.08, 8, 14), emissiveMat(PAL.crtGreen, 0.8));
+        wheel.position.y = 1.1;
+        wheel.rotation.x = Math.PI / 2;
+        g.add(wheel);
+        g.position.copy(v(e.pos));
+        this.scene.add(g);
+        this.valves.push({ id: e.id, obj: g, state: 0 });
+        break;
+      }
+      case 'interactZone':
+        this.zones.push({ id: e.id, pos: v(e.pos), radius: e.radius, label: e.label, used: false });
+        break;
       case 'bobaSpot':
         this.weapons.addBobaSpot(v(e.pos));
         break;
@@ -231,6 +292,52 @@ export class PlayScene implements Scene {
       default:
         break;
     }
+  }
+
+  protected allyFetch: Pickup | null = null;
+
+  protected collect(p: Pickup): void {
+    p.taken = true;
+    p.obj.visible = false;
+    if (p.kind === 'piece') {
+      this.ctx.save.patch((d) => { if (!d.pieces.includes(this.def.id)) d.pieces.push(this.def.id); });
+      this.ctx.hud.setPieces(this.ctx.save.data.pieces.length);
+      this.ctx.hud.toast('LETTER PIECE RECOVERED ✉', 2.2);
+      void this.ctx.audio.play('sparkle', 0.7);
+    } else if (p.kind === 'goldenDuck' && p.id !== undefined) {
+      this.ctx.save.patch((d) => { if (!d.ducks.includes(p.id!)) d.ducks.push(p.id!); });
+      this.ctx.hud.toast(`GOLDEN DUCK ${this.ctx.save.data.ducks.length}/21`, 2.2);
+      void this.ctx.audio.play('quack', 0.7, 0.8);
+    } else if (p.kind === 'pearl') {
+      this.ctx.save.patch((d) => { d.pearls += 1; });
+      this.ctx.hud.setPearls(this.ctx.save.data.pearls);
+      void this.ctx.audio.play('coin', 0.4);
+    } else if (p.kind === 'weapon' && p.weapon) {
+      this.ctx.save.patch((d) => { if (!d.weapons.includes(p.weapon!)) d.weapons.push(p.weapon!); });
+      this.weapons.setLoadout(this.ctx.save.data.weapons, this.ctx.save.data.weaponTiers);
+      this.weapons.equipped = p.weapon;
+      this.ctx.hud.toast(`${WEAPON_NAMES[p.weapon]} ACQUIRED`, 3);
+      void this.ctx.audio.play('fanfare', 0.6);
+    }
+  }
+
+  private updateSlotLabel(slot: { sum: number; label: THREE.Mesh; id: string }): void {
+    const target = this.slotTargets[slot.id];
+    const c = document.createElement('canvas');
+    c.width = 256;
+    c.height = 96;
+    const g = c.getContext('2d')!;
+    g.fillStyle = 'rgba(10,14,32,0.85)';
+    g.fillRect(0, 0, 256, 96);
+    g.fillStyle = '#FFB627';
+    g.font = '700 40px "Space Grotesk", sans-serif';
+    g.textAlign = 'center';
+    g.fillText(`${slot.sum}${target !== undefined ? ' / ' + target : ''}`, 128, 60);
+    const tex = new THREE.CanvasTexture(c);
+    const m = slot.label.material as THREE.MeshBasicMaterial;
+    m.map?.dispose();
+    m.map = tex;
+    m.needsUpdate = true;
   }
 
   protected addEnemy(e: Enemy): void {
@@ -290,14 +397,60 @@ export class PlayScene implements Scene {
       }
     }
 
-    // interactions
+    // interactions (priority: zone > slot deposit > rotor > valve > carry)
+    const nearZone = this.zones.find((z) => !z.used && z.pos.distanceTo(this.player.pos) < z.radius);
+    const nearSlot = this.slots.find((s) => s.obj.position.distanceTo(this.player.pos) < 2.2);
+    const nearRotor = this.rotors.find((r) => r.obj.position.distanceTo(this.player.pos) < 2);
+    const nearValve = this.valves.find((vv) => vv.obj.position.distanceTo(this.player.pos) < 2);
     const nearC = this.im.nearest(this.player);
-    if (this.im.carrying) this.ctx.hud.prompt('[E] PUT DOWN');
-    else if (nearC) this.ctx.hud.prompt(`[E] PICK UP`);
+    const carryingCoin = this.im.carrying?.kind === 'coin';
+
+    if (nearZone) this.ctx.hud.prompt(`[E] ${nearZone.label}`);
+    else if (nearSlot && carryingCoin) this.ctx.hud.prompt('[E] INSERT COIN');
+    else if (nearRotor) this.ctx.hud.prompt('[E] ROTATE');
+    else if (nearValve) this.ctx.hud.prompt('[E] TURN VALVE');
+    else if (this.im.carrying) this.ctx.hud.prompt('[E] PUT DOWN');
+    else if (nearC) this.ctx.hud.prompt('[E] PICK UP');
     else this.ctx.hud.prompt(null);
+
     if (intents.interact) {
-      const r = this.im.interact(this.player);
-      if (r) void this.ctx.audio.play('pop', 0.45);
+      if (nearZone) {
+        nearZone.used = true;
+        this.onZone?.(nearZone.id);
+      } else if (nearSlot && carryingCoin && this.im.carrying) {
+        const coin = this.im.carrying;
+        nearSlot.sum += coin.value || 1;
+        this.im.carrying = null;
+        coin.carried = false;
+        coin.obj.visible = false;
+        coin.pos.set(0, -100, 0);
+        void this.ctx.audio.play('register', 0.6);
+        const target = this.slotTargets[nearSlot.id];
+        if (target !== undefined && nearSlot.sum > target) {
+          nearSlot.sum = 0;
+          this.ctx.hud.toast('OVERPAID. "NO REFUNDS." — HAYDEN', 2.6);
+          void this.ctx.audio.play('error', 0.6);
+          // coins come back out at their homes
+          for (const c of this.im.carriables) {
+            if (c.kind === 'coin') {
+              c.obj.visible = true;
+              c.pos.copy(c.home);
+            }
+          }
+        }
+        this.updateSlotLabel(nearSlot);
+      } else if (nearRotor) {
+        nearRotor.state = (nearRotor.state + 1) % nearRotor.states;
+        nearRotor.obj.rotation.y = (nearRotor.state * Math.PI * 2) / nearRotor.states;
+        void this.ctx.audio.play('click', 0.55);
+      } else if (nearValve) {
+        nearValve.state = (nearValve.state + 1) % 3;
+        nearValve.obj.rotation.y += 1.2;
+        void this.ctx.audio.play('reel', 0.5);
+      } else {
+        const r = this.im.interact(this.player);
+        if (r) void this.ctx.audio.play('pop', 0.45);
+      }
     }
     this.im.update(dt, this.player, this.world);
 
@@ -309,13 +462,35 @@ export class PlayScene implements Scene {
     if (intents.fire) {
       const fired = this.weapons.fire(this.player);
       if (fired === 'ball' || fired === 'boba') void this.ctx.audio.play('boing', 0.4);
-      if (fired === 'whistle') void this.ctx.audio.play('quack', 0.7, 1.4);
       if (fired === 'ankh') void this.ctx.audio.play('sparkle', 0.5);
+      if (fired === 'whistle') {
+        void this.ctx.audio.play('quack', 0.7, 1.4);
+        // the summoned duck fetches the nearest whistle-gated pickup
+        const target = this.pickups.find(
+          (p) => !p.taken && p.kind === 'goldenDuck' && p.needs === 'whistle' &&
+            p.obj.position.distanceTo(this.player.pos) < 16
+        );
+        if (target) {
+          this.weapons.sendAlly(target.obj.position);
+          this.allyFetch = target;
+        }
+      }
+    }
+    if (this.allyFetch && !this.allyFetch.taken && this.weapons.allyDuck?.visible) {
+      if (this.weapons.allyDuck.position.distanceTo(this.allyFetch.obj.position) < 0.6) {
+        this.collect(this.allyFetch);
+      }
     }
     this.weapons.update(dt, this.player, this.world, this.enemies);
 
     // puzzle graph
-    const inputs: PuzzleInputs = { plates: {}, switches: this.switchLatch, keyNear: {} };
+    const inputs: PuzzleInputs = {
+      plates: {},
+      switches: this.switchLatch,
+      keyNear: {},
+      rotors: Object.fromEntries(this.rotors.map((r) => [r.id, r.state])),
+      paid: Object.fromEntries(this.slots.map((s) => [s.id, s.sum])),
+    };
     for (const p of this.im.plates) inputs.plates[p.id] = p.satisfied;
     for (const g of this.im.gates) {
       if (g.needsKey) {
@@ -333,6 +508,21 @@ export class PlayScene implements Scene {
     // enemies
     for (const e of this.enemies) {
       if (e.alive) e.update(dt, this.player, (k) => this.hurt(k));
+    }
+
+    // Hayden's drone re-collects loose coins that aren't home
+    if (this.drone && !this.drone.target) {
+      const loose = this.im.carriables.find(
+        (c) => c.kind === 'coin' && !c.carried && c.obj.visible && c.pos.distanceTo(c.home) > 1.5
+      );
+      if (loose) {
+        this.drone.target = loose.pos;
+        this.drone.onSteal = () => {
+          loose.pos.copy(loose.home);
+          this.ctx.hud.toast('DRONE REPOSSESSED A COIN. — HAYDEN', 2);
+          void this.ctx.audio.play('chatter', 0.4);
+        };
+      }
     }
 
     // hazards
@@ -378,28 +568,7 @@ export class PlayScene implements Scene {
           this.ctx.hud.toast(`THIS DUCK RESPECTS ONLY THE ${WEAPON_NAMES[p.needs]}.`, 2);
           continue;
         }
-        p.taken = true;
-        p.obj.visible = false;
-        if (p.kind === 'piece') {
-          this.ctx.save.patch((d) => { if (!d.pieces.includes(this.def.id)) d.pieces.push(this.def.id); });
-          this.ctx.hud.setPieces(this.ctx.save.data.pieces.length);
-          this.ctx.hud.toast('LETTER PIECE RECOVERED ✉', 2.2);
-          void this.ctx.audio.play('sparkle', 0.7);
-        } else if (p.kind === 'goldenDuck' && p.id !== undefined) {
-          this.ctx.save.patch((d) => { if (!d.ducks.includes(p.id!)) d.ducks.push(p.id!); });
-          this.ctx.hud.toast(`GOLDEN DUCK ${this.ctx.save.data.ducks.length}/21`, 2.2);
-          void this.ctx.audio.play('quack', 0.7, 0.8);
-        } else if (p.kind === 'pearl') {
-          this.ctx.save.patch((d) => { d.pearls += 1; });
-          this.ctx.hud.setPearls(this.ctx.save.data.pearls);
-          void this.ctx.audio.play('coin', 0.4);
-        } else if (p.kind === 'weapon' && p.weapon) {
-          this.ctx.save.patch((d) => { if (!d.weapons.includes(p.weapon!)) d.weapons.push(p.weapon!); });
-          this.weapons.setLoadout(this.ctx.save.data.weapons, this.ctx.save.data.weaponTiers);
-          this.weapons.equipped = p.weapon;
-          this.ctx.hud.toast(`${WEAPON_NAMES[p.weapon]} ACQUIRED`, 3);
-          void this.ctx.audio.play('fanfare', 0.6);
-        }
+        this.collect(p);
       }
     }
 

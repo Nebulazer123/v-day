@@ -8,7 +8,8 @@ export type SfxName =
   | 'bark' | 'boing' | 'quack' | 'coin' | 'sparkle' | 'splash' | 'howl'
   | 'fanfare' | 'heartbeat' | 'jump' | 'land' | 'whoosh' | 'pop' | 'ding'
   | 'hit' | 'impact' | 'powerdown' | 'insertcoin' | 'levelstart' | 'win'
-  | 'wrong' | 'correct' | 'click' | 'catch' | 'error' | 'register' | 'growl';
+  | 'wrong' | 'correct' | 'click' | 'catch' | 'error' | 'register' | 'growl'
+  | 'reel' | 'chatter' | 'cast' | 'flag' | 'type' | 'gameover' | 'taskdone';
 
 export class AudioBus {
   private ctx: AudioContext | null = null;
