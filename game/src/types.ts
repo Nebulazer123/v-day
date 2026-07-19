@@ -35,14 +35,15 @@ export type EntityDef =
   | { type: 'wisp'; pos: Vec3; radius?: number }
   | { type: 'drone'; pos: Vec3 }
   | { type: 'hazard'; shape: { pos: Vec3; size: Vec3 }; kind: 'mud' | 'water' | 'thorns' | 'fall' }
-  | { type: 'carry'; id: string; pos: Vec3; kind: 'dumbbell' | 'block' | 'mirrorShield' | 'coin'; weight?: number; value?: number }
+  | { type: 'carry'; id: string; pos: Vec3; kind: 'dumbbell' | 'block' | 'mirrorShield' | 'coin' | 'key'; weight?: number; value?: number }
   | { type: 'plate'; id: string; pos: Vec3; needWeight?: number; exactWeight?: boolean }
-  | { type: 'door'; id: string; pos: Vec3; size: Vec3; color?: number }
+  | { type: 'door'; id: string; pos: Vec3; size: Vec3; color?: number; needsKey?: boolean }
   | { type: 'lift'; id: string; pos: Vec3; size: Vec3; to: Vec3; color?: number }
   | { type: 'valve'; id: string; pos: Vec3 }
   | { type: 'rotor'; id: string; pos: Vec3; states: number; state?: number; kind: 'barrier' | 'mirror' }
   | { type: 'switchTarget'; id: string; pos: Vec3 }
   | { type: 'slot'; id: string; pos: Vec3; accepts: string }
+  | { type: 'bobaSpot'; pos: Vec3 }
   | { type: 'secretWall'; pos: Vec3; size: Vec3; color: number }
   | { type: 'weaponPickup'; weapon: WeaponId; pos: Vec3 }
   | { type: 'sign'; pos: Vec3; lines: string[]; yaw?: number; fg?: string }
@@ -59,6 +60,11 @@ export interface CameraZone {
   fov?: number;
 }
 
+export type LogicRule =
+  | { when: { plates: string[] }; open: string }   // all plates satisfied -> door/lift id active
+  | { when: { switches: string[] }; open: string } // all switch targets hit
+  | { when: { key: true }; open: string };         // player carries the key near the door
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -68,6 +74,7 @@ export interface LevelDef {
   prims: Prim[];
   entities: EntityDef[];
   cameraZones: CameraZone[];
+  logic?: LogicRule[];
   /** default camera offset when no zone matches */
   cameraOffset: Vec3;
   parSeconds: number;

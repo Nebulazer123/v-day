@@ -8,6 +8,8 @@ import { Save } from './save';
 import { Hud } from './hud';
 import { GameCamera } from './camera';
 import { HubScene } from './scenes/hub';
+import { PlayScene } from './scenes/play';
+import { LEVELS } from './levels/index';
 
 export interface Scene {
   scene: THREE.Scene;
@@ -109,15 +111,15 @@ class Game {
     requestAnimationFrame((t) => this.frame(t));
   }
 
-  private go(name: SceneName, _params?: Record<string, unknown>): void {
+  private go(name: SceneName, params?: Record<string, unknown>): void {
     this.ctx.hud.fade(true);
     const build = (): void => {
       this.current?.dispose();
-      switch (name) {
-        case 'hub':
-        default:
-          this.current = new HubScene(this.ctx);
-          break;
+      const levelId = typeof params?.id === 'string' ? params.id : null;
+      if (name === 'play' && levelId && LEVELS[levelId]) {
+        this.current = new PlayScene(this.ctx, LEVELS[levelId]());
+      } else {
+        this.current = new HubScene(this.ctx);
       }
       this.ctx.hud.fade(false);
     };

@@ -192,7 +192,11 @@ export class HubScene implements Scene {
         for (const e of EXITS) {
           if (Math.abs(this.car.state.z - e.z) < 4 && this.car.state.x > ROAD_HALF - 2.2) {
             if (this.isUnlocked(e.id)) {
-              this.ctx.hud.toast(`${e.name} — UNDER CONSTRUCTION. SOON.`, 2.5);
+              this.exitCooldown = 99;
+              this.ctx.audio.engine(false);
+              void this.ctx.audio.play('insertcoin', 0.6);
+              this.ctx.go('play', { id: e.id });
+              return;
             } else {
               this.ctx.hud.toast('EXIT LOCKED. FINISH THE PREVIOUS CHAPTER.', 2.2);
               void this.ctx.audio.play('wrong', 0.4);
