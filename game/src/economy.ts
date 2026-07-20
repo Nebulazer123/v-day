@@ -112,6 +112,22 @@ export const CATALOG: GearItem[] = [
   { id: 'chromeDuck', name: 'CHROME DUCK ORNAMENT', desc: 'hood royalty. prestige.', category: 'cosmetic', price: 800, emoji: '🏆' },
 ];
 
+export interface SnackEffects {
+  ramenHeals: number;
+  shieldHits: number;
+  hints: number;
+}
+
+/** Every purchased snack contributes its advertised effect to the next run. */
+export function snackEffects(snacks: readonly string[]): SnackEffects {
+  const count = (id: string): number => snacks.filter((snack) => snack === id).length;
+  return {
+    ramenHeals: count('ramen'),
+    shieldHits: count('bobaShield') * 2,
+    hints: count('cookie'),
+  };
+}
+
 export function itemPrice(item: GearItem, hasCoupon: boolean): number {
   return hasCoupon ? Math.round(item.price * 0.8) : item.price;
 }

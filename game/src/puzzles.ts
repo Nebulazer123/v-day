@@ -44,3 +44,8 @@ export function plateSatisfied(restingWeight: number, needWeight: number, exact:
   if (exact) return restingWeight === needWeight;
   return restingWeight >= needWeight;
 }
+
+/** A puzzle chapter may name the gate that must be open before its goal counts. */
+export function goalUnlocked(requiredGate: string | undefined, openGates: ReadonlySet<string>): boolean {
+  return requiredGate === undefined || openGates.has(requiredGate);
+}

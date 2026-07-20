@@ -17,19 +17,29 @@ export function ch1(): LevelDef {
   prims.push({ kind: 'box', pos: { x: 18, y: -0.25, z: -6 }, size: { x: 12, y: 0.5, z: 8 }, color: F });
   // goal pad outside the north gate
   prims.push({ kind: 'box', pos: { x: 0, y: -0.25, z: 19 }, size: { x: 8, y: 0.5, z: 8 }, color: PAL.concrete });
+  // shooting-range bonus cubby outside the north wall. The targets/pearls
+  // were authored here without a floor, leaving them floating over the sky.
+  prims.push({ kind: 'box', pos: { x: 16, y: -0.25, z: 20 }, size: { x: 8, y: 0.5, z: 7 }, color: PAL.concrete });
 
   // perimeter walls (gap at north gate x∈[-2,2], gap at east alcove z∈[-8,-4])
   prims.push({ kind: 'box', pos: { x: 0, y: 1.6, z: -17 }, size: { x: 46, y: 3.2, z: 0.8 }, color: W });
   prims.push({ kind: 'box', pos: { x: -12.75, y: 1.6, z: 17 }, size: { x: 20.5, y: 3.2, z: 0.8 }, color: W });
-  prims.push({ kind: 'box', pos: { x: 12.75, y: 1.6, z: 17 }, size: { x: 20.5, y: 3.2, z: 0.8 }, color: W });
+  // split the east half around the bonus gate at x=16; otherwise lowering
+  // that gate still leaves the player facing an invisible solid wall.
+  prims.push({ kind: 'box', pos: { x: 8.7, y: 1.6, z: 17 }, size: { x: 12.4, y: 3.2, z: 0.8 }, color: W });
+  prims.push({ kind: 'box', pos: { x: 20.05, y: 1.6, z: 17 }, size: { x: 5.9, y: 3.2, z: 0.8 }, color: W });
   prims.push({ kind: 'box', pos: { x: -23, y: 1.6, z: 0 }, size: { x: 0.8, y: 3.2, z: 34 }, color: W });
   // east wall in two segments; the gap is covered by the secret wall
-  prims.push({ kind: 'box', pos: { x: 23, y: 1.6, z: 5.25 }, size: { x: 0.8, y: 3.2, z: 23.5 }, color: W });
+  prims.push({ kind: 'box', pos: { x: 23, y: 1.6, z: 6.725 }, size: { x: 0.8, y: 3.2, z: 20.55 }, color: W });
   prims.push({ kind: 'box', pos: { x: 23, y: 1.6, z: -12.75 }, size: { x: 0.8, y: 3.2, z: 8.5 }, color: W });
   // alcove outer walls
   prims.push({ kind: 'box', pos: { x: 24.4, y: 1.6, z: -6 }, size: { x: 0.8, y: 3.2, z: 9 }, color: W });
   prims.push({ kind: 'box', pos: { x: 18.7, y: 1.6, z: -1.6 }, size: { x: 12, y: 3.2, z: 0.8 }, color: W });
   prims.push({ kind: 'box', pos: { x: 18.7, y: 1.6, z: -10.4 }, size: { x: 12, y: 3.2, z: 0.8 }, color: W });
+  // low rails make the bonus platform readable from a rotated camera.
+  prims.push({ kind: 'box', pos: { x: 12.2, y: 0.5, z: 20 }, size: { x: 0.4, y: 1, z: 7 }, color: W });
+  prims.push({ kind: 'box', pos: { x: 19.8, y: 0.5, z: 20 }, size: { x: 0.4, y: 1, z: 7 }, color: W });
+  prims.push({ kind: 'box', pos: { x: 16, y: 0.5, z: 23.3 }, size: { x: 8, y: 1, z: 0.4 }, color: W });
 
   // key shelf (west, high) + stair boxes toward rafter
   prims.push({ kind: 'box', pos: { x: -19.5, y: 2.85, z: 0 }, size: { x: 6, y: 0.4, z: 8 }, color: 0x2f3856 });
@@ -72,7 +82,7 @@ export function ch1(): LevelDef {
     ],
     entities: [
       { type: 'spawn', pos: { x: 0, y: 0, z: -11 }, yaw: 0 },
-      { type: 'goal', pos: { x: 0, y: 0, z: 20 } },
+      { type: 'goal', pos: { x: 0, y: 0, z: 20 }, requires: 'gate' },
       { type: 'sign', pos: { x: 5, y: 0, z: -13 }, lines: ['LAINIE FITNESS', 'members: 2 (+1 dog)'], yaw: Math.PI },
 
       // balance puzzle
@@ -81,8 +91,7 @@ export function ch1(): LevelDef {
       { type: 'carry', id: 'd1', pos: { x: -9, y: 0, z: -8 }, kind: 'dumbbell', weight: 1 },
       { type: 'carry', id: 'd2', pos: { x: -7, y: 0, z: 1 }, kind: 'dumbbell', weight: 2 },
       { type: 'carry', id: 'd3', pos: { x: -17, y: 0, z: 9 }, kind: 'dumbbell', weight: 3 },
-      { type: 'carry', id: 'd4', pos: { x: -5, y: 0, z: 7 }, kind: 'dumbbell', weight: 1 },
-      { type: 'sign', pos: { x: -14, y: 0, z: -9.5 }, lines: ['BALANCE: 3 EACH SIDE', 'e.g. [3] and [1+2]'], fg: '#33FF88' },
+      { type: 'sign', pos: { x: -14, y: 0, z: -9.5 }, lines: ['BALANCE: 3 EACH SIDE', '[3]  vs  [1 + 2] — use every weight'], fg: '#33FF88' },
 
       // lift to the key shelf
       { type: 'lift', id: 'lift1', pos: { x: -11, y: 0.2, z: 0 }, size: { x: 2.6, y: 0.4, z: 2.6 }, to: { x: -11, y: 2.8, z: 0 }, color: 0x39426e },

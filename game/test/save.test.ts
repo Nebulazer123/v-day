@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultSave, normalizeSave } from '../src/save';
+import { DEFAULT_KEY_BINDINGS } from '../src/controls';
 
 describe('save normalization', () => {
   it('returns defaults for garbage', () => {
@@ -43,5 +44,13 @@ describe('save normalization', () => {
     const lo = normalizeSave({ settings: { brightness: 0.1, musicVolume: -3 } });
     expect(lo.settings.brightness).toBe(0.7);
     expect(lo.settings.musicVolume).toBe(0);
+  });
+
+  it('migrates old saves to default controls and keeps valid custom controls', () => {
+    expect(normalizeSave({ settings: {} }).settings.keyBindings).toEqual(DEFAULT_KEY_BINDINGS);
+    const custom = normalizeSave({ settings: { keyBindings: { moveUp: 'KeyI', moveDown: 'KeyK' } } });
+    expect(custom.settings.keyBindings.moveUp).toBe('KeyI');
+    expect(custom.settings.keyBindings.moveDown).toBe('KeyK');
+    expect(custom.settings.keyBindings.fire).toBe(DEFAULT_KEY_BINDINGS.fire);
   });
 });

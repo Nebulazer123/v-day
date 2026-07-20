@@ -58,7 +58,7 @@ export function ch2(): LevelDef {
     ],
     entities: [
       { type: 'spawn', pos: { x: 0, y: 0, z: -26 }, yaw: 0 },
-      { type: 'goal', pos: { x: 0, y: 0, z: 40 } },
+      { type: 'goal', pos: { x: 0, y: 0, z: 40 }, requires: 'exit' },
       { type: 'sign', pos: { x: 4.5, y: 0, z: -24 }, lines: ['LINCOLN, MAINE', 'famous for: nothing'], yaw: Math.PI },
       { type: 'sign', pos: { x: -5, y: 0, z: 30 }, lines: ['ONE (1) EXIT', 'power required'], fg: '#33FF88' },
 
@@ -67,7 +67,7 @@ export function ch2(): LevelDef {
       { type: 'rotor', id: 'r2', pos: { x: 4, y: 0, z: -2 }, states: 4, state: 2, kind: 'barrier' },
       { type: 'rotor', id: 'r3', pos: { x: -4, y: 0, z: 10 }, states: 4, state: 1, kind: 'barrier' },
       { type: 'rotor', id: 'r4', pos: { x: 3, y: 0, z: 24 }, states: 4, state: 0, kind: 'barrier' },
-      { type: 'door', id: 'exit', pos: { x: 0, y: 1.5, z: 33 }, size: { x: 6, y: 3, z: 0.7 }, color: PAL.crtGreen },
+      { type: 'door', id: 'exit', pos: { x: 0, y: 2.2, z: 33 }, size: { x: 10, y: 4.4, z: 0.7 }, color: PAL.crtGreen },
 
       // mud pits (the official Lincoln pastime)
       { type: 'hazard', kind: 'mud', shape: { pos: { x: -3, y: 0, z: -8 }, size: { x: 5, y: 0.4, z: 4 } } },

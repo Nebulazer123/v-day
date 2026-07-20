@@ -5,6 +5,7 @@
 import { cssHex } from './art/palette';
 import { PAL } from './art/palette';
 import type { Input } from './input';
+import { iconSvg } from './icons';
 
 const CSS = `
 .dj-hud { position: fixed; inset: 0; pointer-events: none; z-index: 10;
@@ -28,7 +29,7 @@ const CSS = `
 .dj-toast { position: absolute; bottom: 18%; left: 50%; transform: translateX(-50%);
   font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 15px;
   letter-spacing: 1.5px; padding: 10px 20px; opacity: 0; transition: opacity 0.3s, transform 0.3s;
-  white-space: nowrap; max-width: 92vw; }
+  white-space: normal; text-align: center; max-width: min(620px, 92vw); }
 .dj-toast.show { opacity: 1; transform: translateX(-50%) translateY(-6px); }
 .dj-prompt { position: absolute; bottom: 26%; left: 50%; transform: translateX(-50%);
   font-weight: 800; font-size: 14px; opacity: 0; transition: opacity 0.2s;
@@ -45,8 +46,25 @@ const CSS = `
 .dj-btn { background: rgba(11,16,38,0.55); backdrop-filter: blur(10px);
   border: 1px solid rgba(255,255,255,0.14); border-radius: 12px; color: #fff;
   font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 13px;
-  padding: 8px 12px; cursor: pointer; touch-action: manipulation; }
+  min-height: 44px; padding: 8px 12px; cursor: pointer; touch-action: manipulation;
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
 .dj-btn:hover { background: rgba(40,50,90,0.7); }
+.dj-btn:focus-visible { outline: 3px solid ${cssHex(PAL.ramenGold)}; outline-offset: 2px; }
+.dj-icon { width: 18px; height: 18px; display: block; flex: 0 0 18px;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.dj-icon-btn { width: 44px; height: 44px; padding: 0; }
+.dj-menu { display: flex; flex-direction: column; gap: 10px; min-width: min(320px,86vw); }
+.dj-key-card { min-width: min(520px,92vw); max-width: 560px; padding: 18px 20px; }
+.dj-key-group { display: grid; gap: 8px; margin-bottom: 18px; }
+.dj-key-group:last-child { margin-bottom: 0; }
+.dj-key-group h2 { margin: 0; font-size: 12px; letter-spacing: 2px; color: ${cssHex(PAL.ramenGold)}; }
+.dj-key-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(118px,auto); align-items: center; gap: 12px; }
+.dj-key-row > span { font-size: 12px; font-weight: 700; }
+.dj-key-row .dj-btn { min-width: 118px; font-size: 12px; }
+.dj-key-row .dj-btn[data-capturing="true"] { border-color: ${cssHex(PAL.heartNeon)}; color: ${cssHex(PAL.heartNeon)}; }
+.dj-hint-list { width: min(540px,92vw); display: grid; gap: 10px; }
+.dj-hint { line-height: 1.55; text-align: left; padding: 14px 16px; }
+.dj-hint b { color: ${cssHex(PAL.ramenGold)}; margin-right: 8px; }
 .dj-touch { position: absolute; inset: 0; display: none; }
 .dj-touch.on { display: block; }
 .dj-tbtn { position: absolute; width: 62px; height: 62px; border-radius: 50%;
@@ -57,10 +75,14 @@ const CSS = `
 .dj-tbtn:active { background: rgba(255,77,141,0.35); }
 .dj-overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 16px;
-  background: rgba(6,9,24,0.72); backdrop-filter: blur(8px); pointer-events: auto; }
+  background: rgba(6,9,24,0.72); backdrop-filter: blur(8px); pointer-events: auto; touch-action: pan-y; }
 .dj-overlay h1 { font-family: 'Space Grotesk', sans-serif; letter-spacing: 4px; }
 .dj-fade { position: absolute; inset: 0; background: #06091a; opacity: 0;
   transition: opacity 0.4s; }
+@media (max-width: 520px) {
+  .dj-key-row { grid-template-columns: 1fr; gap: 6px; }
+  .dj-key-row .dj-btn { width: 100%; }
+}
 `;
 
 export class Hud {
@@ -95,8 +117,8 @@ export class Hud {
       <div class="dj-card dj-toast" data-r="toast"></div>
       <div class="dj-prompt" data-r="prompt"></div>
       <div class="dj-corner">
-        <button class="dj-btn" data-r="mute">♪</button>
-        <button class="dj-btn" data-r="pause">II</button>
+        <button class="dj-btn dj-icon-btn" data-r="mute" aria-label="Toggle music" title="Toggle music">${iconSvg('music')}</button>
+        <button class="dj-btn dj-icon-btn" data-r="pause" aria-label="Pause game" title="Pause game">${iconSvg('pause')}</button>
       </div>
       <div class="dj-touch" data-r="touch"></div>
       <div class="dj-fade" data-r="fade"></div>
@@ -128,9 +150,20 @@ export class Hud {
       b.textContent = label;
       b.style.right = `${right}px`;
       b.style.bottom = `calc(${bottom}px + env(safe-area-inset-bottom))`;
-      b.addEventListener('pointerdown', (e) => { e.stopPropagation(); input.setTouchButton(name, true); });
-      b.addEventListener('pointerup', () => input.setTouchButton(name, false));
-      b.addEventListener('pointercancel', () => input.setTouchButton(name, false));
+      const release = (e: PointerEvent): void => {
+        e.preventDefault();
+        input.setTouchButton(name, false);
+        if (b.hasPointerCapture?.(e.pointerId)) b.releasePointerCapture(e.pointerId);
+      };
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        b.setPointerCapture?.(e.pointerId);
+        input.setTouchButton(name, true);
+      });
+      b.addEventListener('pointerup', release);
+      b.addEventListener('pointercancel', release);
+      b.addEventListener('lostpointercapture', () => input.setTouchButton(name, false));
       this.touchLayer.appendChild(b);
     };
     mk('JUMP', 'jump', 24, 96);
@@ -213,6 +246,9 @@ export class Hud {
   overlay(): HTMLDivElement {
     const o = document.createElement('div');
     o.className = 'dj-overlay';
+    o.setAttribute('role', 'dialog');
+    o.setAttribute('aria-modal', 'true');
+    o.setAttribute('aria-label', 'Game dialog');
     this.root.appendChild(o);
     return o;
   }

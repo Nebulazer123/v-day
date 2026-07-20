@@ -63,6 +63,8 @@ bounties, cinematic cutscenes, and a lowercase letter at sunrise.
 
 ## Undocumented
 
+- 3D-game cheatbook: [`game/CHEATBOOK.md`](game/CHEATBOOK.md).
+
 - `?skipto=finale` (or `gate`/`loading`/`quiz`/`arcadehub`) jumps straight to a screen.
 - Konami code (↑↑↓↓←→←→BA), or tap the ♥ logo 7×, for DUCK MODE.
 - In THE DUCK JOB: tap the four screen corners then the center for DUCK MODE

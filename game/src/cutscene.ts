@@ -42,13 +42,16 @@ export class Cutscene {
     // skip on click/tap or Escape only — movement keys must never skip
     const skip = (e: Event): void => {
       if (e instanceof KeyboardEvent && e.code !== 'Escape') return;
-      e.stopPropagation();
+      e.preventDefault();
+      e.stopImmediatePropagation();
       this.finish();
     };
     this.skipHandler = skip;
     setTimeout(() => {
-      addEventListener('pointerdown', skip);
-      addEventListener('keydown', skip);
+      // Capture before Input's bubble listeners so the skip click/Escape cannot
+      // leak into the first gameplay frame as a shot or immediate pause.
+      addEventListener('pointerdown', skip, true);
+      addEventListener('keydown', skip, true);
     }, 350);
   }
   private skipHandler: (e: Event) => void;
@@ -100,8 +103,8 @@ export class Cutscene {
   finish(): void {
     if (this.done) return;
     this.done = true;
-    removeEventListener('pointerdown', this.skipHandler);
-    removeEventListener('keydown', this.skipHandler);
+    removeEventListener('pointerdown', this.skipHandler, true);
+    removeEventListener('keydown', this.skipHandler, true);
     this.cinema.setCinematic(false);
     this.cinema.timeScale = 1;
     this.camera.cinematicControl = false;

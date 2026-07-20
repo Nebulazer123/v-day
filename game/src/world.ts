@@ -140,7 +140,7 @@ export class World {
       } else {
         top = c.center.y + c.half.y;
       }
-      if (top <= maxY + 0.35 && top > best) best = top;
+      if (top <= maxY && top > best) best = top;
     }
     return best;
   }

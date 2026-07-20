@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { PlayScene } from './play';
 import type { GameContext } from '../main';
-import { ch4, CH4_WATER } from '../levels/ch4';
+import { ch4, CH4_WATER, isCh4WaterHazard } from '../levels/ch4';
 import { PAL } from '../art/palette';
 
 const TIDE_LEVELS = [CH4_WATER.low, CH4_WATER.mid, CH4_WATER.high];
@@ -60,7 +60,7 @@ export class BeachScene extends PlayScene {
     }
 
     // Bentley can't swim (tragic): submerged on the flat = splash + respawn
-    if (this.player.pos.y < this.water.position.y - 0.35) {
+    if (isCh4WaterHazard(this.player.pos, this.water.position.y)) {
       void this.ctx.audio.play('splash', 0.6);
       this.hurt('water');
       this.respawn();

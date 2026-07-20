@@ -54,13 +54,13 @@ export function ch3(): LevelDef {
     ],
     entities: [
       { type: 'spawn', pos: { x: -3, y: 0, z: -20 }, yaw: 0 },
-      { type: 'goal', pos: { x: 0, y: 0, z: 36 } },
+      { type: 'goal', pos: { x: 0, y: 0, z: 36 }, requires: 'tollgate' },
       { type: 'sign', pos: { x: -5, y: 0, z: -3 }, lines: ['TOLL: 7 ⬤ EXACT', 'itemized: crossing 5,', 'convenience 1, vibes 1'], fg: '#FFB627' },
       { type: 'sign', pos: { x: 5.5, y: 0, z: -18 }, lines: ['HAYDEN LLC', 'no refunds. ever.'], yaw: Math.PI },
 
       // the till + gate
       { type: 'slot', id: 'till', pos: { x: 1.4, y: 0, z: -1 }, accepts: 'coin' },
-      { type: 'door', id: 'tollgate', pos: { x: 0, y: 1.4, z: 1 }, size: { x: 7.4, y: 2.8, z: 0.6 }, color: PAL.ramenGold },
+      { type: 'door', id: 'tollgate', pos: { x: 0, y: 2.2, z: 1 }, size: { x: 7.4, y: 4.4, z: 0.6 }, color: PAL.ramenGold },
 
       // coins: 2+1 on the ground route, 2 in the jar, 2 on the booth roof
       { type: 'carry', id: 'c1', pos: { x: -6, y: 0, z: -14 }, kind: 'coin', weight: 0, value: 2 },

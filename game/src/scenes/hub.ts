@@ -2,7 +2,7 @@
 // midnight highway between chapter exits, discover the diner by reversing.
 
 import * as THREE from 'three';
-import { hubDef, EXITS, DINER_Z, ROAD_HALF } from '../levels/hub';
+import { hubDef, EXITS, DINER_Z, ROAD_HALF, isAtChapterExit } from '../levels/hub';
 import { World } from '../world';
 import { Player } from '../player';
 import { Car } from '../car';
@@ -16,6 +16,7 @@ import { makeGoldenDuck } from '../art/kit';
 import { openShop } from '../shop';
 import { offerBounties } from '../economy';
 import type { GameContext, Scene } from '../main';
+import { advanceDuckCode, initialDuckCodeState } from '../cheats';
 
 const CAR_SEAT = new THREE.Vector3(0, 0.6, -0.2);
 
@@ -36,7 +37,7 @@ export class HubScene implements Scene {
   private shopOpen = false;
   private hornTaps = 0;
   private hornTimer = 0;
-  private duckCode: number[] = [];
+  private duckCode = initialDuckCodeState();
   private bentleyTaps = 0;
   private idleTime = 0;
   private grandmaToldYou = false;
@@ -44,6 +45,7 @@ export class HubScene implements Scene {
 
   constructor(private ctx: GameContext) {
     const def = hubDef();
+    this.dinerFound = !!ctx.save.data.secrets.diner;
     this.world = new World(def);
     this.scene.add(this.world.group);
     this.scene.fog = new THREE.FogExp2(PAL.midnight, def.fogDensity ?? 0.011);
@@ -97,8 +99,10 @@ export class HubScene implements Scene {
     const rng = mulberry(7);
     for (let i = 0; i < 60; i++) {
       const side = rng() > 0.5 ? 1 : -1;
+      const z = -80 + rng() * 330;
+      if (side === 1 && EXITS.some((exit) => Math.abs(exit.z - z) < 7)) continue;
       const tree = makePine(3 + rng() * 4);
-      tree.position.set(side * (ROAD_HALF + 10 + rng() * 22), 0, -80 + rng() * 330);
+      tree.position.set(side * (ROAD_HALF + 10 + rng() * 22), 0, z);
       this.scene.add(tree);
     }
 
@@ -107,11 +111,14 @@ export class HubScene implements Scene {
       const unlocked = this.isUnlocked(e.id);
       const sign = makeSign(
         [`EXIT ${e.id.slice(2)}`, e.name],
-        unlocked ? {} : { fg: '#5b6070' }
+        unlocked ? { glow: e.accent } : { fg: '#5b6070' }
       );
-      sign.position.set(ROAD_HALF + 8.4, 0, e.z);
+      sign.position.set(ROAD_HALF + 10.5, 0, e.z - 5.4);
       sign.rotation.y = -Math.PI / 2;
       this.scene.add(sign);
+      const roadLight = new THREE.PointLight(unlocked ? e.accent : 0x34384a, unlocked ? 22 : 5, 13, 1.8);
+      roadLight.position.set(ROAD_HALF + 8, 2.4, e.z);
+      this.scene.add(roadLight);
     }
     // diner signage (dark until found)
     const dinerSign = makeSign(["GRANDMA'S", 'DINER'], { fg: '#CBB7E8', glow: PAL.grandmaLilac });
@@ -192,11 +199,9 @@ export class HubScene implements Scene {
       x > 0.82 && y > 0.82 ? 3 :
       x > 0.4 && x < 0.6 && y > 0.4 && y < 0.6 ? 4 : -1;
     if (corner === -1) return;
-    const want = [0, 1, 2, 3, 4];
-    this.duckCode.push(corner);
-    if (this.duckCode.length > 5) this.duckCode.shift();
-    if (want.every((w, i) => this.duckCode[i] === w)) {
-      this.duckCode = [];
+    const result = advanceDuckCode(this.duckCode, corner, performance.now());
+    this.duckCode = result.state;
+    if (result.triggered) {
       this.duckMode();
     }
   };
@@ -424,6 +429,8 @@ export class HubScene implements Scene {
         this.car.setHeadlights(true);
         this.ctx.audio.engine(true, 0);
         void this.ctx.audio.play('click', 0.5);
+        void this.ctx.audio.play('growl', 0.22, 0.55);
+        this.ctx.hud.toast('W/S THROTTLE + BRAKE  ·  A/D STEER  ·  SPACE HANDBRAKE  ·  F HORN', 3.4);
         this.ctx.camera.configure([], { x: 0, y: 4.6, z: -9.5 });
         if (!this.heroDone) {
           this.heroDone = true;
@@ -441,8 +448,17 @@ export class HubScene implements Scene {
       // driving
       const steer = intents.moveX;
       const forward = intents.moveY;
-      this.car.update(dt, steer, forward);
-      this.ctx.audio.engine(true, Math.abs(this.car.state.speed) / this.car.maxSpeed);
+      const besideExit = EXITS.some((exit) => Math.abs(this.car.state.z - exit.z) < 5);
+      this.car.laneHalf = besideExit ? ROAD_HALF + 28 : ROAD_HALF - 0.6;
+      const drive = this.car.update(dt, steer, forward, intents.jump);
+      this.ctx.audio.engine(
+        true,
+        Math.abs(this.car.state.speed) / (this.car.maxSpeed * this.car.speedMultiplier),
+        Math.abs(forward),
+        drive.skid,
+        this.car.state.gear,
+        drive.shifted,
+      );
 
       // seat Bentley silhouette in the car (ears out the window, later pass)
       this.player.pos.copy(this.car.rig.group.position).add(CAR_SEAT);
@@ -460,7 +476,7 @@ export class HubScene implements Scene {
       // horn (the ducks respect it)
       if (intents.fire) {
         const owned2 = this.ctx.save.data.gear.owned;
-        void this.ctx.audio.play(owned2.includes('hornQuack') ? 'quack' : owned2.includes('hornBark') ? 'bark' : 'boing', 0.7, owned2.includes('hornQuack') || owned2.includes('hornBark') ? 1 : 0.6);
+        this.ctx.audio.horn(owned2.includes('hornQuack') ? 'quack' : owned2.includes('hornBark') ? 'bark' : 'stock');
         this.hornTaps++;
         clearTimeout(this.hornTimer);
         this.hornTimer = window.setTimeout(() => { this.hornTaps = 0; }, 1200);
@@ -485,7 +501,7 @@ export class HubScene implements Scene {
       // exits
       if (this.exitCooldown <= 0) {
         for (const e of EXITS) {
-          if (Math.abs(this.car.state.z - e.z) < 4 && this.car.state.x > ROAD_HALF - 2.2) {
+          if (isAtChapterExit(this.car.state.x, this.car.state.z, e)) {
             if (this.isUnlocked(e.id)) {
               this.exitCooldown = 99;
               this.ctx.audio.engine(false);

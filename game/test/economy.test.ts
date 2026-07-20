@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scoreRun, betterMedal, CATALOG, itemPrice, canBuy, offerBounties } from '../src/economy';
+import { scoreRun, betterMedal, CATALOG, itemPrice, canBuy, offerBounties, snackEffects } from '../src/economy';
 
 const clean = { timeSeconds: 100, parSeconds: 170, deaths: 0, ducksThisRun: 3, secretFound: true, bounty: false, modifierCount: 0 };
 
@@ -54,6 +54,14 @@ describe('shop', () => {
     expect(canBuy(foam, 999, ['foam'], false)).toBe(false);
     expect(canBuy(ramen, 999, ['ramen'], false)).toBe(true);
     expect(canBuy(foam, 100, [], false)).toBe(false); // too poor
+  });
+
+  it('honors every purchased snack in a stacked one-run loadout', () => {
+    expect(snackEffects(['cookie', 'cookie', 'ramen', 'bobaShield', 'bobaShield'])).toEqual({
+      ramenHeals: 1,
+      shieldHits: 4,
+      hints: 2,
+    });
   });
 
   it('catalog ids are unique', () => {

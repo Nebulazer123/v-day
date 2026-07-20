@@ -30,23 +30,73 @@ export class Carriable {
   }
 }
 
+export interface PlateSlot {
+  x: number;
+  z: number;
+}
+
+/** Stable plate-local locations prevent a valid multi-weight solution from overlapping itself. */
+export function plateSlotOffsets(count: number): PlateSlot[] {
+  if (count <= 0) return [];
+  if (count === 1) return [{ x: 0, z: 0 }];
+  const radius = count === 2 ? 0.46 : 0.54;
+  return Array.from({ length: count }, (_, index) => {
+    const angle = -Math.PI / 2 + (index * Math.PI * 2) / count;
+    return { x: Math.cos(angle) * radius, z: Math.sin(angle) * radius };
+  });
+}
+
+/** The explanation displayed above an exact scale, e.g. `1 + 2 = 3`. */
+export function weightSummary(weights: readonly number[]): string {
+  if (weights.length === 0) return '0';
+  const ordered = [...weights].sort((a, b) => a - b);
+  if (ordered.length === 1) return String(ordered[0]);
+  return `${ordered.join(' + ')} = ${ordered.reduce((total, weight) => total + weight, 0)}`;
+}
+
+function dumbbellColor(weight: number): number {
+  if (weight <= 1) return PAL.crtGreen;
+  if (weight === 2) return PAL.taroPurple;
+  return PAL.ramenGold;
+}
+
 function makeCarriable(kind: Carriable['kind'], weight: number): THREE.Object3D {
   const g = new THREE.Group();
   if (kind === 'dumbbell') {
     const s = 0.16 + weight * 0.08;
+    const color = dumbbellColor(weight);
     const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.7, 8), mat(0xc8cdd6, { gloss: 0.4, flatShading: false }));
     bar.rotation.z = Math.PI / 2;
     bar.position.y = s;
     g.add(bar);
     for (const side of [-0.3, 0.3]) {
-      const plate = new THREE.Mesh(new THREE.CylinderGeometry(s, s, 0.12, 12), mat(0x2f3856, { gloss: 0.3, flatShading: false }));
+      const plate = new THREE.Mesh(new THREE.CylinderGeometry(s, s, 0.12, 12), mat(color, { emissive: color, emissiveIntensity: 0.18, gloss: 0.35, flatShading: false }));
       plate.rotation.z = Math.PI / 2;
       plate.position.set(side, s, 0);
       g.add(plate);
     }
-    // weight label
-    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.02), emissiveMat(PAL.ramenGold, 0.8));
-    tag.position.set(0, s + 0.16, 0);
+    // A top-facing numeral reads from the authored high-angle Gym camera.
+    const tagTexture = canvasTexture(128, 128, (ctx) => {
+      ctx.clearRect(0, 0, 128, 128);
+      ctx.fillStyle = '#0b1026';
+      ctx.beginPath();
+      ctx.arc(64, 64, 54, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `#${color.toString(16).padStart(6, '0')}`;
+      ctx.lineWidth = 8;
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 72px "Space Grotesk", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(weight), 64, 68);
+    });
+    const tag = new THREE.Mesh(
+      new THREE.PlaneGeometry(Math.max(0.38, s * 1.35), Math.max(0.38, s * 1.35)),
+      new THREE.MeshBasicMaterial({ map: tagTexture, transparent: true, side: THREE.DoubleSide })
+    );
+    tag.rotation.x = -Math.PI / 2;
+    tag.position.set(0, s * 2 + 0.035, 0);
     g.add(tag);
     (g as THREE.Group & { weightScale?: number }).weightScale = s;
   } else if (kind === 'block') {
@@ -80,7 +130,7 @@ export class Plate {
   readonly group = new THREE.Group();
   readonly obj: THREE.Mesh;
   private label: THREE.Mesh;
-  private lastShown = -1;
+  private lastShown = '';
   satisfied = false;
   restingWeight = 0;
   /** generous placement radius so dropping "on" the plate always registers */
@@ -109,26 +159,29 @@ export class Plate {
     this.label.position.set(0, 1.5, 0);
     this.group.add(this.label);
     this.group.position.copy(pos);
-    this.setLabel(0);
+    this.setLabel(0, []);
   }
 
-  private setLabel(w: number): void {
-    if (w === this.lastShown) return;
-    this.lastShown = w;
+  private setLabel(w: number, weights: readonly number[]): void {
+    const shown = `${w}:${weightSummary(weights)}`;
+    if (shown === this.lastShown) return;
+    this.lastShown = shown;
     const ok = this.exact ? w === this.needWeight : w >= this.needWeight;
-    const tex = canvasTexture(160, 80, (ctx) => {
-      ctx.clearRect(0, 0, 160, 80);
+    const tex = canvasTexture(240, 120, (ctx) => {
+      ctx.clearRect(0, 0, 240, 120);
       ctx.fillStyle = 'rgba(11,16,38,0.82)';
       ctx.beginPath();
       // rounded pill
       const r = 22;
-      ctx.moveTo(r, 4); ctx.arcTo(156, 4, 156, 76, r); ctx.arcTo(156, 76, 4, 76, r);
-      ctx.arcTo(4, 76, 4, 4, r); ctx.arcTo(4, 4, 156, 4, r); ctx.fill();
+      ctx.moveTo(r, 4); ctx.arcTo(236, 4, 236, 116, r); ctx.arcTo(236, 116, 4, 116, r);
+      ctx.arcTo(4, 116, 4, 4, r); ctx.arcTo(4, 4, 236, 4, r); ctx.fill();
       ctx.fillStyle = ok ? '#33FF88' : '#FFB627';
-      ctx.font = '700 44px "Space Grotesk", sans-serif';
+      ctx.font = `700 ${weights.length > 1 ? 31 : 40}px "Space Grotesk", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${w} / ${this.needWeight}`, 80, 44);
+      ctx.fillText(weightSummary(weights), 120, 42);
+      ctx.font = '700 27px "Space Grotesk", sans-serif';
+      ctx.fillText(`TARGET ${this.needWeight}`, 120, 87);
     });
     const m = this.label.material as THREE.MeshBasicMaterial;
     m.map?.dispose();
@@ -141,9 +194,9 @@ export class Plate {
     this.label.quaternion.copy(cam.quaternion);
   }
 
-  update(w: number): void {
+  update(w: number, weights: readonly number[] = []): void {
     this.restingWeight = w;
-    this.setLabel(w);
+    this.setLabel(w, weights);
     const s = plateSatisfied(w, this.needWeight, this.exact);
     if (s !== this.satisfied) {
       this.satisfied = s;
@@ -174,9 +227,17 @@ export class Gate {
       enabled: true,
     });
   }
-  update(dt: number): void {
+  update(dt: number, rider?: Player): void {
+    const startY = this.obj.position.y;
+    const topY = startY + this.collider.half.y;
+    const carriesRider = this.isLift && !!rider && rider.state.grounded &&
+      Math.abs(rider.pos.y - topY) < 0.12 &&
+      Math.abs(rider.pos.x - this.obj.position.x) <= this.collider.half.x &&
+      Math.abs(rider.pos.z - this.obj.position.z) <= this.collider.half.z;
     const target = this.open ? this.openY : this.closedY;
     this.obj.position.y = THREE.MathUtils.damp(this.obj.position.y, target, 3, dt);
+    this.collider.center.copy(this.obj.position);
+    if (carriesRider && rider) rider.ridePlatform(this.obj.position.y - startY);
   }
 }
 
@@ -254,7 +315,10 @@ export class InteractManager {
       this.carrying.pos.set(player.pos.x, player.pos.y + 1.25, player.pos.z);
       this.carrying.obj.rotation.y += dt * 1.5;
     }
-    // settle uncarried carriables onto ground + snap them onto nearby plates
+    // Settle uncarried carriables onto ground, then group them by the nearby
+    // plate. A group is laid out into stable local slots below, so a 1+2
+    // solution stays visible as two weights instead of becoming one blob.
+    const onPlate = new Map<Plate, Carriable[]>();
     for (const c of this.carriables) {
       if (c.carried) continue;
       const g = world.groundAt(c.pos.x, c.pos.z, c.pos.y + 0.4);
@@ -270,34 +334,46 @@ export class InteractManager {
         if (d < p.snapR && d < bd) { bd = d; best = p; }
       }
       if (best) {
-        c.pos.x = THREE.MathUtils.damp(c.pos.x, best.pos.x, 12, dt);
-        c.pos.z = THREE.MathUtils.damp(c.pos.z, best.pos.z, 12, dt);
+        const group = onPlate.get(best) ?? [];
+        group.push(c);
+        onPlate.set(best, group);
+      }
+    }
+
+    for (const [plate, group] of onPlate) {
+      group.sort((a, b) => a.id.localeCompare(b.id));
+      const slots = plateSlotOffsets(group.length);
+      for (let index = 0; index < group.length; index++) {
+        const c = group[index];
+        const slot = slots[index];
+        c.pos.x = THREE.MathUtils.damp(c.pos.x, plate.pos.x + slot.x, 12, dt);
+        c.pos.z = THREE.MathUtils.damp(c.pos.z, plate.pos.z + slot.z, 12, dt);
       }
     }
 
     // plates: sum resting carriable weight. Player standing only counts on
     // NON-exact plates (on exact "balance" plates it was a hidden trap).
     for (const p of this.plates) {
-      let w = 0;
-      for (const c of this.carriables) {
-        if (c.carried) continue;
-        const dx = c.pos.x - p.pos.x;
-        const dz = c.pos.z - p.pos.z;
-        if (dx * dx + dz * dz < p.snapR * p.snapR && Math.abs(c.pos.y - p.pos.y) < 0.7) w += c.weight;
-      }
+      const weights = (onPlate.get(p) ?? [])
+        .filter((c) => Math.abs(c.pos.y - p.pos.y) < 0.7)
+        .map((c) => c.weight);
+      let w = weights.reduce((total, weight) => total + weight, 0);
       if (!p.exact) {
         const pdx = player.pos.x - p.pos.x;
         const pdz = player.pos.z - p.pos.z;
-        if (pdx * pdx + pdz * pdz < 1.2 && Math.abs(player.pos.y - p.pos.y) < 0.7) w += 1;
+        if (pdx * pdx + pdz * pdz < 1.2 && Math.abs(player.pos.y - p.pos.y) < 0.7) {
+          // Non-exact plates count Bentley too, so their visible arithmetic
+          // must include him rather than showing a misleading lower total.
+          w += 1;
+          weights.push(1);
+        }
       }
-      p.update(w);
+      p.update(w, weights);
       if (cam) p.faceCamera(cam);
     }
 
     for (const g of this.gates) {
-      g.update(dt);
-      // collider follows door position
-      g.collider.center.copy(g.obj.position);
+      g.update(dt, player);
     }
   }
 }

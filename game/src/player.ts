@@ -78,6 +78,24 @@ export class Player {
     this.rig.group.position.copy(this.pos);
   }
 
+  /** Keep Bentley planted on an authored moving platform instead of relying on a loose ground snap. */
+  ridePlatform(deltaY: number): void {
+    if (Math.abs(deltaY) < 0.00001) return;
+    this.pos.y += deltaY;
+    this.state.vy = 0;
+    this.state.grounded = true;
+    this.rig.group.position.y = this.pos.y;
+  }
+
+  /** Point Bentley and the held launcher at a horizontal world direction. */
+  faceDirection(x: number, z: number): void {
+    const length = Math.hypot(x, z);
+    if (length < 0.0001) return;
+    this.state.facingX = x / length;
+    this.state.facingZ = z / length;
+    this.rig.group.rotation.y = Math.atan2(this.state.facingX, this.state.facingZ);
+  }
+
   /**
    * camYaw rotates screen-relative input into world space.
    */
@@ -88,7 +106,9 @@ export class Player {
     const wx = intents.moveX * cos - intents.moveY * sin;
     const wz = -intents.moveX * sin - intents.moveY * cos;
 
-    const groundY = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.3);
+    // A small lip can be stepped over; a real platform needs a jump. Moving
+    // lifts carry their rider explicitly rather than abusing this tolerance.
+    const groundY = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.2);
     const step = stepMove(
       this.state,
       { x: wx, y: wz, jumpPressed: intents.jumpPressed, jumpHeld: intents.jump, pounce: intents.pounce },

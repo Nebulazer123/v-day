@@ -44,6 +44,8 @@ export class DockScene extends PlayScene {
     }
   }
 
+  protected override canFinish(): boolean { return this.solved; }
+
   /** the payoff: crane from the telescope up the beam into the igniting sky */
   private playIgnition(path: import('../beams').BeamPath, canonical: boolean): void {
     void this.ctx.audio.play('sparkle', 0.8);

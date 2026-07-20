@@ -2,6 +2,7 @@
 // migration/load path is unit-testable without a browser.
 
 import type { SaveData } from './types';
+import { DEFAULT_KEY_BINDINGS, normalizeKeyBindings } from './controls';
 
 export const SAVE_KEY = 'duck-job-v1';
 
@@ -20,7 +21,12 @@ export function defaultSave(): SaveData {
     secrets: {},
     muted: false,
     tier: null,
-    settings: { brightness: 1.15, bloom: true, musicVolume: 0.28 },
+    settings: {
+      brightness: 1.15,
+      bloom: true,
+      musicVolume: 0.28,
+      keyBindings: { ...DEFAULT_KEY_BINDINGS },
+    },
   };
 }
 
@@ -62,6 +68,7 @@ export function normalizeSave(raw: unknown): SaveData {
     if (typeof s.musicVolume === 'number' && isFinite(s.musicVolume)) {
       d.settings.musicVolume = Math.min(1, Math.max(0, s.musicVolume));
     }
+    d.settings.keyBindings = normalizeKeyBindings(s.keyBindings);
   }
   return d;
 }

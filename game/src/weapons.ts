@@ -80,7 +80,7 @@ export class Weapons {
     this.equipped = this.owned[(i + dir + this.owned.length) % this.owned.length];
   }
 
-  fire(player: Player): WeaponId | null {
+  fire(player: Player, aim?: THREE.Vector3 | null): WeaponId | null {
     if (!this.equipped) return null;
     const w = this.equipped;
     if (w === 'ball' || w === 'boba') {
@@ -93,7 +93,9 @@ export class Weapons {
       (b.obj.material as THREE.MeshLambertMaterial).emissive.setHex(w === 'ball' ? PAL.crtGreen : PAL.taroPurple);
       b.obj.visible = true;
       b.obj.position.set(player.pos.x, player.pos.y + 0.8, player.pos.z);
-      b.vel.set(player.state.facingX, 0.42, player.state.facingZ).normalize().multiplyScalar(13.5);
+      const x = aim?.x ?? player.state.facingX;
+      const z = aim?.z ?? player.state.facingZ;
+      b.vel.set(x, 0.42, z).normalize().multiplyScalar(13.5);
       return w;
     }
     if (w === 'whistle') {
@@ -107,6 +109,13 @@ export class Weapons {
       return w;
     }
     return null;
+  }
+
+  equipSlot(index: number): WeaponId | null {
+    const weapon = this.owned[index];
+    if (!weapon) return null;
+    this.equipped = weapon;
+    return weapon;
   }
 
   private summonAlly(player: Player): void {

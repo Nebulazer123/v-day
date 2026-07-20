@@ -123,8 +123,42 @@ export function makeBentley(): BentleyRig {
 export interface C6Rig {
   group: THREE.Group;
   wheels: THREE.Object3D[];
+  frontWheelPivots: THREE.Object3D[];
   headlights: THREE.SpotLight[];
   taillights: THREE.Mesh[];
+}
+
+function carShell(
+  sections: ReadonlyArray<readonly [z: number, halfWidth: number, centerY: number, halfHeight: number]>,
+  material: THREE.Material,
+): THREE.Mesh {
+  const sides = 12;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (const [z, width, centerY, height] of sections) {
+    for (let side = 0; side < sides; side++) {
+      const angle = (side / sides) * Math.PI * 2;
+      positions.push(Math.cos(angle) * width, centerY + Math.sin(angle) * height, z);
+    }
+  }
+  for (let ring = 0; ring < sections.length - 1; ring++) {
+    for (let side = 0; side < sides; side++) {
+      const next = (side + 1) % sides;
+      const a = ring * sides + side;
+      const b = ring * sides + next;
+      const c = (ring + 1) * sides + next;
+      const d = (ring + 1) * sides + side;
+      indices.push(a, b, d, b, c, d);
+    }
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 /**
@@ -134,99 +168,153 @@ export interface C6Rig {
  */
 export function makeC6(): C6Rig {
   const group = new THREE.Group();
-  // slight self-glow so Victory Red stays red under midnight light
-  const paint = { gloss: 0.85, rim: 0.35, flatShading: false, emissive: 0x4a0808, emissiveIntensity: 1 } as const;
+  group.name = 'CorbinsVictoryRedC6';
+  const paintMaterial = mat(PAL.victoryRed, {
+    gloss: 0.92, rim: 0.42, flatShading: false,
+    emissive: 0x390404, emissiveIntensity: 0.78,
+  });
+  const paint = { gloss: 0.92, rim: 0.42, flatShading: false, emissive: 0x390404, emissiveIntensity: 0.78 } as const;
 
-  // main tub
-  const tub = box(1.76, 0.42, 4.1, PAL.victoryRed, paint);
-  tub.position.y = 0.5;
-  group.add(tub);
+  // A continuous, rounded C6 profile: short tail, wide rear haunches and a
+  // long, low nose. Cross-sections are based on the supplied side/top sheet.
+  const body = carShell([
+    [-2.22, 0.76, 0.51, 0.28],
+    [-1.86, 0.91, 0.54, 0.32],
+    [-1.25, 0.96, 0.52, 0.34],
+    [-0.30, 0.91, 0.50, 0.31],
+    [0.78, 0.94, 0.48, 0.29],
+    [1.58, 0.91, 0.46, 0.25],
+    [2.28, 0.79, 0.43, 0.20],
+    [2.72, 0.58, 0.40, 0.13],
+  ], paintMaterial);
+  body.name = 'sculpted-c6-body';
+  group.add(body);
 
-  // long tapering nose
-  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.86, 1.5, 4, 1), mat(PAL.victoryRed, paint));
-  nose.geometry.rotateY(Math.PI / 4);
-  nose.geometry.scale(1.42, 1, 0.5);
-  nose.rotation.x = Math.PI / 2;
-  nose.position.set(0, 0.48, 2.5);
-  nose.castShadow = true;
-  group.add(nose);
+  // Crisp hood power bulge and front splitter keep the smooth shell readable.
+  const hood = box(0.72, 0.055, 1.5, PAL.victoryRed, paint);
+  hood.position.set(0, 0.72, 1.48);
+  hood.rotation.x = -0.045;
+  group.add(hood);
+  const splitter = box(1.5, 0.055, 0.38, 0x0a0b10, { gloss: 0.35, flatShading: false });
+  splitter.position.set(0, 0.23, 2.55);
+  group.add(splitter);
+  const grille = box(0.92, 0.16, 0.035, 0x05060a, { gloss: 0.2, flatShading: false });
+  grille.position.set(0, 0.40, 2.72);
+  group.add(grille);
 
-  // cabin: low raked greenhouse — windshield slab, roof, rear glass
+  // Cabin: one rounded, dark greenhouse instead of stacked blocks. The C6's
+  // fast windshield and long hatch glass are a major part of its silhouette.
   const glass = { gloss: 0.75, rim: 0.45, flatShading: false } as const;
-  const windshield = box(1.28, 0.05, 0.78, 0x151d30, glass);
-  windshield.rotation.x = -0.62;
-  windshield.position.set(0, 0.86, 0.28);
-  group.add(windshield);
-  const roof = box(1.24, 0.05, 0.72, 0x151d30, glass);
-  roof.position.set(0, 1.02, -0.42);
-  group.add(roof);
-  const rearGlass = box(1.24, 0.05, 0.62, 0x151d30, glass);
-  rearGlass.rotation.x = 0.72;
-  rearGlass.position.set(0, 0.88, -1.02);
-  group.add(rearGlass);
-  // b-pillars fill the sides under the glass line
-  const pillars = box(1.18, 0.3, 1.36, 0x151d30, glass);
-  pillars.position.set(0, 0.78, -0.42);
-  group.add(pillars);
+  const canopy = carShell([
+    [-1.31, 0.52, 0.80, 0.09],
+    [-0.98, 0.65, 0.94, 0.20],
+    [-0.48, 0.68, 1.01, 0.24],
+    [0.02, 0.67, 0.99, 0.22],
+    [0.42, 0.58, 0.86, 0.12],
+  ], mat(0x0a111d, glass));
+  canopy.name = 'c6-glass-canopy';
+  group.add(canopy);
+  const roofPanel = box(1.18, 0.035, 0.54, 0x070b13, { gloss: 0.8, flatShading: false });
+  roofPanel.position.set(0, 1.245, -0.42);
+  group.add(roofPanel);
+  for (const x of [-0.69, 0.69]) {
+    const mirror = box(0.22, 0.12, 0.28, PAL.victoryRed, paint);
+    mirror.position.set(x, 0.87, 0.18);
+    mirror.rotation.y = x * -0.18;
+    group.add(mirror);
+  }
 
   // rear deck + SHORT lip spoiler (non-negotiable detail)
-  const deck = box(1.7, 0.16, 0.7, PAL.victoryRed, paint);
-  deck.position.set(0, 0.66, -1.85);
+  const deck = box(1.76, 0.12, 0.68, PAL.victoryRed, paint);
+  deck.position.set(0, 0.76, -1.82);
   group.add(deck);
-  const spoiler = box(1.5, 0.06, 0.18, PAL.victoryRed, paint);
-  spoiler.position.set(0, 0.78, -2.08);
+  const spoiler = box(1.62, 0.075, 0.24, PAL.victoryRed, paint);
+  spoiler.position.set(0, 0.91, -2.05);
+  spoiler.rotation.x = -0.08;
   group.add(spoiler);
+  for (const x of [-0.62, 0.62]) {
+    const riser = box(0.1, 0.17, 0.11, PAL.victoryRed, paint);
+    riser.position.set(x, 0.82, -1.98);
+    group.add(riser);
+  }
 
   // rear fascia panel with four round Morimoto taillights, flush-mounted
-  const fascia = box(1.72, 0.34, 0.06, 0x1a0f12, { gloss: 0.3, flatShading: false });
-  fascia.position.set(0, 0.55, -2.13);
+  const fascia = box(1.77, 0.38, 0.055, PAL.victoryRed, paint);
+  fascia.position.set(0, 0.60, -2.20);
   group.add(fascia);
   const taillights: THREE.Mesh[] = [];
-  for (const x of [-0.64, -0.3, 0.3, 0.64]) {
-    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.03, 14), mat(0x0d0709, { flatShading: false }));
+  for (const x of [-0.64, -0.31, 0.31, 0.64]) {
+    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.035, 20), mat(0x21070a, { gloss: 0.5, flatShading: false }));
     housing.rotation.x = Math.PI / 2;
-    housing.position.set(x, 0.55, -2.16);
+    housing.position.set(x, 0.63, -2.235);
     group.add(housing);
-    const tl = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.03, 14), emissiveMat(PAL.taillight, 1.7));
+    const tl = new THREE.Mesh(new THREE.TorusGeometry(0.091, 0.027, 8, 20), emissiveMat(PAL.taillight, 1.25));
     tl.rotation.x = Math.PI / 2;
-    tl.position.set(x, 0.55, -2.17);
+    tl.position.set(x, 0.63, -2.265);
+    tl.name = 'round-taillight';
     group.add(tl);
     taillights.push(tl);
   }
+  const diffuser = box(1.58, 0.18, 0.12, 0x0a0b10, { gloss: 0.28, flatShading: false });
+  diffuser.position.set(0, 0.30, -2.20);
+  group.add(diffuser);
   // quad exhaust, center-exit like the real car
-  for (const x of [-0.24, -0.1, 0.1, 0.24]) {
-    const ex = cyl(0.05, 0.05, 0.12, 0xc8cdd6, 10, { gloss: 0.5, flatShading: false });
+  for (const x of [-0.24, -0.08, 0.08, 0.24]) {
+    const ex = cyl(0.068, 0.068, 0.16, 0xc8cdd6, 14, { gloss: 0.8, flatShading: false });
     ex.rotation.x = Math.PI / 2;
-    ex.position.set(x, 0.3, -2.1);
+    ex.position.set(x, 0.27, -2.27);
+    ex.name = 'center-exhaust';
     group.add(ex);
   }
 
   // headlights
   const headlights: THREE.SpotLight[] = [];
   for (const x of [-0.55, 0.55]) {
-    const lens = box(0.3, 0.09, 0.06, PAL.star, { emissive: PAL.star, emissiveIntensity: 1.2 });
-    lens.position.set(x, 0.56, 2.94);
+    const lens = box(0.39, 0.075, 0.045, 0x536675, { gloss: 0.95, emissive: 0x263d4a, emissiveIntensity: 0.32, flatShading: false });
+    lens.position.set(x, 0.55, 2.59);
+    lens.rotation.y = x * -0.33;
+    lens.name = 'swept-headlight-lens';
     group.add(lens);
+    for (const [offset, radius] of [[-0.10, 0.052], [0, 0.06], [0.10, 0.046]] as const) {
+      const projector = new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 7), emissiveMat(0xfff4d6, 0.62));
+      projector.position.set(x + offset * Math.sign(x), 0.555, 2.625);
+      group.add(projector);
+    }
     const spot = new THREE.SpotLight(0xfff2cc, 0, 40, 0.5, 0.45, 1.2);
-    spot.position.set(x, 0.6, 2.9);
+    spot.position.set(x, 0.6, 2.68);
     spot.target.position.set(x * 1.2, 0, 14);
     group.add(spot, spot.target);
     headlights.push(spot);
   }
+  for (const x of [-0.66, 0.66]) {
+    const fog = box(0.24, 0.08, 0.04, 0x758892, { emissive: 0x9dbbc5, emissiveIntensity: 0.28, flatShading: false });
+    fog.position.set(x, 0.34, 2.66);
+    group.add(fog);
+  }
 
   // wheels
   const wheels: THREE.Object3D[] = [];
+  const frontWheelPivots: THREE.Object3D[] = [];
   for (const [x, z] of [[-0.85, 1.55], [0.85, 1.55], [-0.85, -1.45], [0.85, -1.45]] as const) {
+    const pivot = new THREE.Group();
     const w = new THREE.Group();
-    const tire = cyl(0.36, 0.36, 0.26, 0x10131f, 14, { rim: 0.1, flatShading: false });
-    tire.rotation.z = Math.PI / 2;
+    const tire = new THREE.Mesh(new THREE.TorusGeometry(0.285, 0.095, 10, 22), mat(0x080a0f, { rim: 0.12, flatShading: false }));
+    tire.rotation.y = Math.PI / 2;
+    tire.castShadow = true;
     w.add(tire);
-    const cap = cyl(0.18, 0.18, 0.28, 0xc8cdd6, 8, { gloss: 0.6, flatShading: false });
-    cap.rotation.z = Math.PI / 2;
-    w.add(cap);
-    w.position.set(x, 0.36, z);
-    group.add(w);
+    const hub = cyl(0.07, 0.07, 0.29, 0x9fa8b7, 12, { gloss: 0.85, flatShading: false });
+    hub.rotation.z = Math.PI / 2;
+    w.add(hub);
+    for (let spoke = 0; spoke < 10; spoke++) {
+      const arm = box(0.035, 0.045, 0.43, 0xcbd1dc, { gloss: 0.9, flatShading: false });
+      arm.rotation.x = (spoke / 10) * Math.PI * 2;
+      w.add(arm);
+    }
+    pivot.position.set(x, 0.38, z);
+    pivot.add(w);
+    group.add(pivot);
     wheels.push(w);
+    if (z > 0) frontWheelPivots.push(pivot);
   }
 
   // license plate: LAINIE
@@ -247,7 +335,7 @@ export function makeC6(): C6Rig {
   plate.rotation.y = Math.PI;
   group.add(plate);
 
-  return { group, wheels, headlights, taillights };
+  return { group, wheels, frontWheelPivots, headlights, taillights };
 }
 
 // ---------------------------------------------------------------- ducks

@@ -3,18 +3,21 @@
 
 import * as THREE from 'three';
 import { makeC6, type C6Rig } from './art/kit';
+import { DEFAULT_DRIVE, stepDrive, type DriveStep } from './vehicle';
 
 export interface CarState {
   z: number;        // distance along the highway
   x: number;        // lane offset
   speed: number;
+  steering: number;
+  gear: number;
   driving: boolean;
 }
 
 export class Car {
   readonly rig: C6Rig;
-  readonly state: CarState = { z: 0, x: 0, speed: 0, driving: false };
-  maxSpeed = 26;
+  readonly state: CarState = { z: 0, x: 0, speed: 0, steering: 0, gear: 1, driving: false };
+  maxSpeed = DEFAULT_DRIVE.maxForwardSpeed;
   laneHalf = 5.4;
   speedMultiplier = 1;
 
@@ -33,22 +36,34 @@ export class Car {
     for (const h of this.rig.headlights) h.intensity = on ? 260 : 0;
   }
 
-  /** steer in [-1,1]; forward in [-1,1] (negative = reverse for the diner secret). */
-  update(dt: number, steer: number, forward: number): void {
+  /** steer/throttle in [-1,1]. Reverse first brakes; handbrake gives a quick stop. */
+  update(dt: number, steer: number, throttle: number, handbrake = false): DriveStep {
     const s = this.state;
-    const target = forward * this.maxSpeed * this.speedMultiplier;
-    s.speed = THREE.MathUtils.damp(s.speed, target, 1.6, dt);
-    s.z += s.speed * dt;
-    s.x += steer * 9 * dt * Math.min(1, Math.abs(s.speed) / 6 + 0.2);
+    const tuning = {
+      ...DEFAULT_DRIVE,
+      maxForwardSpeed: this.maxSpeed * this.speedMultiplier,
+    };
+    const step = stepDrive(s, { throttle, steer, handbrake }, tuning, dt);
+    s.z += step.distance;
+    s.x += step.lateral;
     s.x = THREE.MathUtils.clamp(s.x, -this.laneHalf, this.laneHalf);
 
     const g = this.rig.group;
     g.position.set(s.x, 0, s.z);
-    g.rotation.y = steer * -0.18 * Math.sign(s.speed || 1);
+    g.rotation.y = s.steering * -0.15 * Math.sign(s.speed || 1);
     // wheel spin
-    const spin = s.speed * dt * 2.6;
+    const spin = s.speed * dt / 0.38;
     for (const w of this.rig.wheels) w.rotation.x += spin;
+    for (const pivot of this.rig.frontWheelPivots) {
+      pivot.rotation.y = THREE.MathUtils.damp(pivot.rotation.y, s.steering * -0.42, 10, dt);
+    }
+    for (const light of this.rig.taillights) {
+      const material = light.material as THREE.MeshStandardMaterial;
+      material.emissiveIntensity = step.braking ? 4.2 : 1.25;
+    }
     // body lean
-    g.rotation.z = THREE.MathUtils.damp(g.rotation.z, steer * -0.06, 6, dt);
+    g.rotation.z = THREE.MathUtils.damp(g.rotation.z, s.steering * -0.045, 7, dt);
+    g.position.y = Math.sin(s.z * 2.1) * Math.min(0.012, Math.abs(s.speed) * 0.00055);
+    return step;
   }
 }

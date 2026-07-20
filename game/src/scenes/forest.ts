@@ -137,6 +137,8 @@ export class ForestScene extends PlayScene {
     }
   }
 
+  protected override canFinish(): boolean { return this.yeeted; }
+
   private yeet(): void {
     this.yeeted = true;
     this.goalBlocker.enabled = false;

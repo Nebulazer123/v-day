@@ -1,5 +1,7 @@
 // Shared typed schemas: level data, colliders, save file.
 
+import type { KeyBindings } from './controls';
+
 export interface Vec3 {
   x: number;
   y: number;
@@ -26,7 +28,7 @@ export interface Prim {
 
 export type EntityDef =
   | { type: 'spawn'; pos: Vec3; yaw?: number }
-  | { type: 'goal'; pos: Vec3 }
+  | { type: 'goal'; pos: Vec3; /** puzzle gate required before completion */ requires?: string }
   | { type: 'letterPiece'; pos: Vec3 }
   | { type: 'goldenDuck'; id: number; pos: Vec3; needs?: WeaponId }
   | { type: 'pearl'; pos: Vec3 }
@@ -107,5 +109,6 @@ export interface SaveData {
     brightness: number;   // renderer exposure, 0.7–2.4 (1.0 = neutral)
     bloom: boolean;       // neon glow post-processing
     musicVolume: number;  // 0–1
+    keyBindings: KeyBindings;
   };
 }

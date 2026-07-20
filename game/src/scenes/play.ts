@@ -11,12 +11,14 @@ import { PAL } from '../art/palette';
 import { emissiveMat, mat } from '../art/toon';
 import { makeSign, makePolaroid, makeHeartPiece, makeGoldenDuck } from '../art/kit';
 import { InteractManager } from '../interact';
-import { evaluate, type PuzzleInputs } from '../puzzles';
+import { evaluate, goalUnlocked, type PuzzleInputs } from '../puzzles';
 import { Weapons, WEAPON_NAMES } from '../weapons';
 import { PatrolDuck, Crab, Wisp, Drone, type Enemy } from '../enemies';
 import { Fx } from '../fx';
 import { Cutscene } from '../cutscene';
-import { scoreRun, betterMedal, type RunResult } from '../economy';
+import { scoreRun, betterMedal, snackEffects, type RunResult } from '../economy';
+import { pointerAimDirection } from '../aim';
+import { hintAt } from '../hints';
 
 interface Pickup {
   obj: THREE.Object3D;
@@ -26,15 +28,6 @@ interface Pickup {
   needs?: WeaponId;
   taken: boolean;
 }
-
-const HINTS: Record<string, string> = {
-  ch1: 'GRANDMA SAYS: 3 = 3. THE DOG COUNTS AS ONE.',
-  ch2: 'GRANDMA SAYS: EVERY WIRE ARM MUST POINT AT THE NEXT ROTOR.',
-  ch3: 'GRANDMA SAYS: 2+2+2+1. LEAVE THE BIG COIN. HE WANTS YOU TO OVERPAY.',
-  ch4: 'GRANDMA SAYS: LOW TIDE TO PUSH. HIGH TIDE TO FLOAT. MID TO THINK.',
-  ch5: 'GRANDMA SAYS: SLASH, SLASH, BACKSLASH, BACKSLASH, SLASH.',
-  ch6: 'GRANDMA SAYS: THE ANKH SHOWS THE SOCKETS. HIDE BEHIND ROCKS.',
-};
 
 interface HazardRect {
   min: THREE.Vector3;
@@ -54,6 +47,8 @@ export class PlayScene implements Scene {
   private hazards: HazardRect[] = [];
   private secretWalls: { mesh: THREE.Mesh; found: boolean }[] = [];
   private goalPos = new THREE.Vector3();
+  private goalRequirement: string | undefined;
+  private goalLockedNotice = false;
   private spawnPos = new THREE.Vector3();
   private spawnYaw = 0;
   protected hearts = 3;
@@ -78,7 +73,7 @@ export class PlayScene implements Scene {
   private pearlsThisRun = 0;
   private ducksThisRun = 0;
   private secretThisRun = false;
-  private snackRamen = false;
+  private snackRamen = 0;
   private snackShield = 0;
   private snackCookie = 0;
   private secondWind = false;
@@ -122,6 +117,14 @@ export class PlayScene implements Scene {
     this.weapons.setLoadout(ctx.save.data.weapons, ctx.save.data.weaponTiers);
     this.weapons.onHitTarget = (id) => {
       this.switchLatch[id] = true;
+      if (this.def.id === 'ch3' && id === 'jar') {
+        const coin = this.im.carriables.find((candidate) => candidate.id === 'c3');
+        if (coin && !coin.carried) {
+          coin.pos.set(-6, 0, -5.4);
+          coin.home.copy(coin.pos);
+          this.ctx.hud.toast('THE JAR COIN DROPPED TO THE GROUND', 2.2);
+        }
+      }
       void ctx.audio.play('correct', 0.5);
     };
     this.weapons.onBonk = () => {
@@ -139,9 +142,10 @@ export class PlayScene implements Scene {
     if (gear.collar === 'racing') { this.maxHearts = Math.max(1, this.maxHearts - 1); this.player.cfg.speedMultiplier *= 1.15; }
     if (charms.includes('slowpaw')) this.player.cfg.pounceCooldown *= 0.6;
     this.secondWind = charms.includes('secondwind');
-    this.snackRamen = gear.snacks.includes('ramen');
-    this.snackShield = gear.snacks.includes('bobaShield') ? 2 : 0;
-    this.snackCookie = gear.snacks.includes('cookie') ? 1 : 0;
+    const snacks = snackEffects(gear.snacks);
+    this.snackRamen = snacks.ramenHeals;
+    this.snackShield = snacks.shieldHits;
+    this.snackCookie = snacks.hints;
     if (this.mods.has('oneHeart')) this.maxHearts = 1;
     if (this.mods.has('noWeapons')) this.weapons.setLoadout([], {});
     if (this.mods.has('fogRolls')) (this.scene.fog as THREE.FogExp2).density = (def.fogDensity ?? 0.016) * 2.2;
@@ -169,7 +173,7 @@ export class PlayScene implements Scene {
       if (e.code !== 'KeyH') return;
       if (this.snackCookie > this.hintsUsed) {
         this.hintsUsed++;
-        this.ctx.hud.toast(HINTS[this.def.id] ?? 'FOLLOW THE GLOW. TRUST THE DOG.', 4.5);
+        this.ctx.hud.toast(`GRANDMA SAYS: ${hintAt(this.def.id, this.hintsUsed - 1) ?? 'FOLLOW THE GLOW. TRUST THE DOG.'}`, 4.5);
         void this.ctx.audio.play('ding', 0.6);
       } else if (this.snackCookie > 0) {
         this.ctx.hud.toast('COOKIE ALREADY EATEN.', 1.6);
@@ -188,6 +192,7 @@ export class PlayScene implements Scene {
         break;
       case 'goal': {
         this.goalPos.copy(v(e.pos));
+        this.goalRequirement = e.requires;
         const gate = new THREE.Group();
         const ring = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.13, 10, 24), emissiveMat(PAL.heartNeon, 1.8));
         ring.position.y = 1.4;
@@ -472,8 +477,8 @@ export class PlayScene implements Scene {
     }
     this.hearts -= 1;
     this.iframes = 1.2;
-    if (this.hearts === 1 && this.snackRamen) {
-      this.snackRamen = false;
+    if (this.hearts === 1 && this.snackRamen > 0) {
+      this.snackRamen--;
       this.hearts = this.maxHearts;
       this.ctx.hud.toast('RAMEN CUP. FULLY RESTORED. 🍜', 2);
       void this.ctx.audio.play('correct', 0.7);
@@ -500,8 +505,6 @@ export class PlayScene implements Scene {
         this.ctx.hud.toast('RUN OVER. THE DUCKS ARE LAUGHING.', 2.6);
       }
       this.pearlsThisRun = 0;
-      this.snackShield = this.ctx.save.data.gear.snacks.includes('bobaShield') ? 2 : 0;
-      this.snackRamen = this.ctx.save.data.gear.snacks.includes('ramen');
       this.hearts = this.maxHearts;
       this.ctx.hud.setHearts(this.hearts, this.maxHearts);
       this.respawn();
@@ -625,8 +628,18 @@ export class PlayScene implements Scene {
       this.weapons.cycle(intents.cycle);
       if (this.weapons.equipped) this.ctx.hud.toast(WEAPON_NAMES[this.weapons.equipped], 1);
     }
+    if (intents.selectWeapon !== null) {
+      const selected = this.weapons.equipSlot(intents.selectWeapon);
+      if (selected) this.ctx.hud.toast(WEAPON_NAMES[selected], 1);
+    }
+    const mouseAim = intents.aimNdc
+      ? pointerAimDirection(this.ctx.camera.cam, intents.aimNdc, this.player.pos)
+      : null;
+    if (mouseAim && (this.weapons.equipped === 'ball' || this.weapons.equipped === 'boba')) {
+      this.player.faceDirection(mouseAim.x, mouseAim.z);
+    }
     if (intents.fire) {
-      const fired = this.weapons.fire(this.player);
+      const fired = this.weapons.fire(this.player, mouseAim);
       if (!fired && this.weapons.owned.length === 0 && !this.warnedNoWeapon) {
         this.warnedNoWeapon = true;
         this.ctx.hud.toast('NO WEAPON YET — they hide in SECRET ROOMS (walk into odd walls)', 3.4);
@@ -771,8 +784,14 @@ export class PlayScene implements Scene {
     }
 
     // goal
-    if (this.player.pos.distanceTo(this.goalPos) < 1.6) {
+    const atGoal = this.player.pos.distanceTo(this.goalPos) < 1.6;
+    if (atGoal && goalUnlocked(this.goalRequirement, open) && this.canFinish()) {
       this.finish();
+    } else if (atGoal && !this.goalLockedNotice) {
+      this.goalLockedNotice = true;
+      this.ctx.hud.toast('THE WAY OPENS AFTER THE PUZZLE IS SOLVED.', 2.2);
+    } else if (!atGoal) {
+      this.goalLockedNotice = false;
     }
 
     this.onUpdate(dt, intents);
@@ -789,6 +808,9 @@ export class PlayScene implements Scene {
 
   /** chapter-specific hooks */
   protected onUpdate(_dt: number, _intents: ReturnType<GameContext['input']['poll']>): void {}
+
+  /** Chapter runtimes with bespoke puzzles can add their own completion lock. */
+  protected canFinish(): boolean { return true; }
 
   protected finish(): void {
     if (this.done) return;

@@ -5,10 +5,18 @@
 // on their plates and the sandcastle door opens. A rescued duck hands over
 // the Duck Whistle. Crabs. Obviously crabs.
 
-import type { LevelDef, Prim } from '../types';
+import type { LevelDef, Prim, Vec3 } from '../types';
 import { PAL } from '../art/palette';
 
 export const CH4_WATER = { low: -1.6, mid: -0.6, high: 0.7 };
+export const CH4_TIDAL_FLAT = { minX: -22, maxX: 22, minZ: -8, maxZ: 8 };
+
+/** The rising water is dangerous on the tidal flat, not across the whole beach. */
+export function isCh4WaterHazard(pos: Pick<Vec3, 'x' | 'y' | 'z'>, waterY: number): boolean {
+  const insideFlat = pos.x >= CH4_TIDAL_FLAT.minX && pos.x <= CH4_TIDAL_FLAT.maxX &&
+    pos.z >= CH4_TIDAL_FLAT.minZ && pos.z <= CH4_TIDAL_FLAT.maxZ;
+  return insideFlat && pos.y < waterY - 0.15;
+}
 
 export function ch4(): LevelDef {
   const prims: Prim[] = [];
@@ -22,7 +30,10 @@ export function ch4(): LevelDef {
   prims.push({ kind: 'box', pos: { x: 0, y: -0.25, z: 16 }, size: { x: 26, y: 0.5, z: 16 }, color: SAND });
 
   // the sandcastle: walls + ledges at two heights for floated blocks
-  prims.push({ kind: 'box', pos: { x: 0, y: 1.2, z: 21 }, size: { x: 10, y: 2.4, z: 1 }, color: 0xd8c193 });
+  // front wall is split around the dynamic castle door so lowering the door
+  // creates a real, walkable opening instead of revealing another collider.
+  prims.push({ kind: 'box', pos: { x: -3.1, y: 1.2, z: 21 }, size: { x: 3.8, y: 2.4, z: 1 }, color: 0xd8c193 });
+  prims.push({ kind: 'box', pos: { x: 3.1, y: 1.2, z: 21 }, size: { x: 3.8, y: 2.4, z: 1 }, color: 0xd8c193 });
   prims.push({ kind: 'cylinder', pos: { x: -5.5, y: 1.6, z: 21 }, size: { x: 2, y: 3.2, z: 2 }, color: 0xd8c193 });
   prims.push({ kind: 'cylinder', pos: { x: 5.5, y: 1.6, z: 21 }, size: { x: 2, y: 3.2, z: 2 }, color: 0xd8c193 });
   // ledges (plates sit on these)
@@ -56,7 +67,7 @@ export function ch4(): LevelDef {
     ],
     entities: [
       { type: 'spawn', pos: { x: 0, y: 0, z: -22 }, yaw: 0 },
-      { type: 'goal', pos: { x: 0, y: 0.6, z: 22.5 } },
+      { type: 'goal', pos: { x: 0, y: 0.6, z: 22.5 }, requires: 'castle' },
       { type: 'sign', pos: { x: 6, y: 0, z: -20 }, lines: ['THE BEACH', 'shoes: optional. crabs: not.'], yaw: Math.PI },
       { type: 'sign', pos: { x: -8, y: 0, z: -12 }, lines: ['TIDE MACHINE', 'low · mid · high'], fg: '#4DB8FF' },
 
