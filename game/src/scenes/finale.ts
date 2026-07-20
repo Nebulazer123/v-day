@@ -178,7 +178,7 @@ export class FinaleScene implements Scene {
     const intents = this.ctx.input.poll();
     this.ctx.camera.control(dt, intents.rotate, intents.zoom);
     this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
-    if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3);
+    if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3, this.player.events.airJumped ? 1.35 : 1);
 
     const nearEasel = this.player.pos.z > 30 && this.player.pos.distanceTo(this.easelPos) < 9;
     const pieces = this.ctx.save.data.pieces.length;

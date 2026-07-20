@@ -18,8 +18,11 @@ export class Player {
   height = 0.9;
   private squash = 0;
   private t = 0;
+  private airSpinT: number | null = null;
+  private readonly airSpinDuration = 0.4;
   /** set for one frame on events, for FX/SFX hooks */
-  events: { jumped: boolean; landed: boolean; pounced: boolean } = { jumped: false, landed: false, pounced: false };
+  events: { jumped: boolean; airJumped: boolean; landed: boolean; pounced: boolean } =
+    { jumped: false, airJumped: false, landed: false, pounced: false };
 
   constructor() {
     this.rig = makeBentley();
@@ -101,9 +104,15 @@ export class Player {
 
     this.events = {
       jumped: this.state.justJumped,
+      airJumped: this.state.justAirJumped,
       landed: this.state.justLanded,
       pounced: this.state.justPounced,
     };
+    if (this.state.justAirJumped) this.airSpinT = 0;
+    if (this.airSpinT !== null) {
+      this.airSpinT += dt;
+      if (this.airSpinT >= this.airSpinDuration) this.airSpinT = null;
+    }
 
     // ------- animation
     this.t += dt;
@@ -136,8 +145,12 @@ export class Player {
     this.rig.earL.rotation.x = this.state.grounded ? 0 : -0.6;
     this.rig.earR.rotation.x = this.state.grounded ? 0 : -0.6;
     this.rig.tail.rotation.x = -0.7 + Math.sin(this.t * 8) * 0.25 * (0.4 + gait);
-    // pounce: lean forward
-    this.rig.body.rotation.x = this.state.pouncing > 0 ? -0.35 : damp(this.rig.body.rotation.x, 0, 10, dt);
+    // pounce: lean forward. double jump: a quick comedic front-flip.
+    if (this.airSpinT !== null) {
+      this.rig.body.rotation.x = (this.airSpinT / this.airSpinDuration) * Math.PI * 2;
+    } else {
+      this.rig.body.rotation.x = this.state.pouncing > 0 ? -0.35 : damp(this.rig.body.rotation.x, 0, 10, dt);
+    }
   }
 }
 

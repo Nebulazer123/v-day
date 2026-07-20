@@ -11,6 +11,8 @@ export interface MoveConfig {
   jumpCutMultiplier: number; // gravity multiplier when jump released early
   coyoteTime: number;
   jumpBuffer: number;
+  maxJumps: number;          // 2 = one ground jump + one air (double) jump
+  airJumpVelMultiplier: number; // air jump strength relative to jumpVel
   pounceSpeed: number;
   pounceTime: number;
   pounceCooldown: number;
@@ -27,6 +29,8 @@ export const DEFAULT_MOVE: MoveConfig = {
   jumpCutMultiplier: 2.6,
   coyoteTime: 0.12,
   jumpBuffer: 0.15,
+  maxJumps: 2,
+  airJumpVelMultiplier: 0.92,
   pounceSpeed: 11.5,
   pounceTime: 0.28,
   pounceCooldown: 0.9,
@@ -43,7 +47,9 @@ export interface MoveState {
   pounceCd: number;
   jumpHeld: boolean;
   facingX: number; facingZ: number;
+  airJumps: number;      // air jumps used since last touching ground
   justJumped: boolean;
+  justAirJumped: boolean;
   justLanded: boolean;
   justPounced: boolean;
 }
@@ -53,8 +59,8 @@ export function initialMoveState(): MoveState {
     vx: 0, vy: 0, vz: 0,
     grounded: false, coyote: 0, buffer: 0,
     pouncing: 0, pounceCd: 0, jumpHeld: false,
-    facingX: 0, facingZ: 1,
-    justJumped: false, justLanded: false, justPounced: false,
+    facingX: 0, facingZ: 1, airJumps: 0,
+    justJumped: false, justAirJumped: false, justLanded: false, justPounced: false,
   };
 }
 
@@ -78,6 +84,7 @@ export function stepMove(
   groundY: number
 ): { dx: number; dy: number; dz: number } {
   s.justJumped = false;
+  s.justAirJumped = false;
   s.justLanded = false;
   s.justPounced = false;
 
@@ -86,6 +93,7 @@ export function stepMove(
   s.grounded = onGround;
   if (onGround) {
     s.coyote = cfg.coyoteTime;
+    s.airJumps = 0;
     if (!wasGrounded) s.justLanded = true;
   } else {
     s.coyote = Math.max(0, s.coyote - dt);
@@ -130,13 +138,19 @@ export function stepMove(
       s.vz = approach(s.vz, 0, cfg.friction * dt);
     }
 
-    // jump (buffered + coyote)
+    // jump (buffered + coyote), or a double/multi jump in mid-air
     if (s.buffer > 0 && (s.grounded || s.coyote > 0)) {
       s.vy = cfg.jumpVel;
       s.buffer = 0;
       s.coyote = 0;
       s.grounded = false;
       s.justJumped = true;
+    } else if (s.buffer > 0 && s.airJumps < cfg.maxJumps - 1) {
+      s.vy = cfg.jumpVel * cfg.airJumpVelMultiplier;
+      s.buffer = 0;
+      s.airJumps++;
+      s.justJumped = true;
+      s.justAirJumped = true;
     }
 
     // gravity with early-release cut for variable height

@@ -375,7 +375,7 @@ export class HubScene implements Scene {
 
     if (this.mode === 'walk') {
       this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
-      if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.35);
+      if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.35, this.player.events.airJumped ? 1.35 : 1);
       if (this.player.events.landed) void this.ctx.audio.play('land', 0.25);
       if (this.player.events.pounced) {
         void this.ctx.audio.play('whoosh', 0.4);

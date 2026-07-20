@@ -534,7 +534,7 @@ export class PlayScene implements Scene {
     this.player.rig.group.visible = this.iframes <= 0 || Math.floor(this.iframes * 14) % 2 === 0;
 
     this.player.update(dt, intents, this.world, this.ctx.camera.yaw);
-    if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3);
+    if (this.player.events.jumped) void this.ctx.audio.play('jump', 0.3, this.player.events.airJumped ? 1.35 : 1);
     if (this.player.trail !== null && Math.hypot(this.player.state.vx, this.player.state.vz) > 3 && Math.random() < dt * 20) {
       this.fx.burst(this.player.pos.clone().setY(this.player.pos.y + 0.4), 1, { colors: [this.player.trail], speed: 0.4, up: 0.8, gravity: 0.4, life: 0.7 });
     }
