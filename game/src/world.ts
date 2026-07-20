@@ -145,15 +145,19 @@ export class World {
     return best;
   }
 
-  /** Push a capsule (radius r) out of walls horizontally. Mutates pos. */
-  resolveWalls(pos: THREE.Vector3, r: number, height: number): void {
+  /**
+   * Push a capsule (radius r) out of walls horizontally. Low surfaces within
+   * `stepHeight` are handled by the player's ground snap, so they must not
+   * also behave like walls.
+   */
+  resolveWalls(pos: THREE.Vector3, r: number, height: number, stepHeight = 0): void {
     const p = new THREE.Vector3();
     for (const c of this.colliders) {
       if (!c.enabled || c.kind === 'ramp') continue;
       const top = c.center.y + c.half.y;
       const bottom = c.center.y - c.half.y;
-      // ignore floors below foot or ceilings above head
-      if (top < pos.y + 0.3 || bottom > pos.y + height) continue;
+      // ignore floors/low steps below the foot or ceilings above the head
+      if (top <= pos.y + stepHeight || bottom > pos.y + height) continue;
       p.set(pos.x - c.center.x, 0, pos.z - c.center.z);
       if (c.yaw) p.applyAxisAngle(UP, -c.yaw);
       const dx = c.half.x + r - Math.abs(p.x);

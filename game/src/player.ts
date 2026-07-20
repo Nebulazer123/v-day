@@ -8,6 +8,9 @@ import { PAL } from './art/palette';
 import { DEFAULT_MOVE, initialMoveState, stepMove, type MoveConfig, type MoveState } from './movement';
 import type { World } from './world';
 import type { Intents } from './input';
+import { SafeGround } from './safe-ground';
+
+const STEP_HEIGHT = 0.45;
 
 export class Player {
   readonly rig: BentleyRig;
@@ -20,6 +23,7 @@ export class Player {
   private t = 0;
   private airSpinT: number | null = null;
   private readonly airSpinDuration = 0.4;
+  private readonly safeGround = new SafeGround();
   /** set for one frame on events, for FX/SFX hooks */
   events: { jumped: boolean; airJumped: boolean; landed: boolean; pounced: boolean } =
     { jumped: false, airJumped: false, landed: false, pounced: false };
@@ -71,11 +75,24 @@ export class Player {
   trail: number | null = null;
 
   spawnAt(x: number, y: number, z: number, yaw = 0): void {
+    this.placeAt(x, y, z, yaw);
+    this.safeGround.remember(x, y, z, yaw);
+  }
+
+  /** Return to the latest place Bentley was definitely supported by ground. */
+  respawnAtSafeGround(): void {
+    const safe = this.safeGround.position();
+    this.placeAt(safe.x, safe.y, safe.z, safe.yaw);
+  }
+
+  private placeAt(x: number, y: number, z: number, yaw: number): void {
     this.pos.set(x, y, z);
-    this.state.vx = this.state.vy = this.state.vz = 0;
+    Object.assign(this.state, initialMoveState());
+    this.state.grounded = true;
     this.state.facingX = Math.sin(yaw);
     this.state.facingZ = Math.cos(yaw);
     this.rig.group.position.copy(this.pos);
+    this.rig.group.rotation.y = yaw;
   }
 
   /** Keep Bentley planted on an authored moving platform instead of relying on a loose ground snap. */
@@ -84,6 +101,7 @@ export class Player {
     this.pos.y += deltaY;
     this.state.vy = 0;
     this.state.grounded = true;
+    this.rememberSafeGround();
     this.rig.group.position.y = this.pos.y;
   }
 
@@ -106,9 +124,13 @@ export class Player {
     const wx = intents.moveX * cos - intents.moveY * sin;
     const wz = -intents.moveX * sin - intents.moveY * cos;
 
-    // A small lip can be stepped over; a real platform needs a jump. Moving
-    // lifts carry their rider explicitly rather than abusing this tolerance.
-    const groundY = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.2);
+    // A small lip can be stepped over; a real platform needs a jump. We probe
+    // once before and once after horizontal motion: the second probe prevents
+    // a platform edge from leaving Bentley below its own floor.
+    const wasGrounded = this.state.grounded;
+    const startY = this.pos.y;
+    const stepHeight = wasGrounded ? STEP_HEIGHT : 0.02;
+    const groundY = world.groundAt(this.pos.x, this.pos.z, this.pos.y + stepHeight);
     const step = stepMove(
       this.state,
       { x: wx, y: wz, jumpPressed: intents.jumpPressed, jumpHeld: intents.jump, pounce: intents.pounce },
@@ -120,7 +142,31 @@ export class Player {
     this.pos.x += step.dx;
     this.pos.y += step.dy;
     this.pos.z += step.dz;
-    world.resolveWalls(this.pos, this.radius, this.height);
+    world.resolveWalls(this.pos, this.radius, this.height, wasGrounded ? STEP_HEIGHT : 0);
+
+    // Sweep the landing probe from the foot's previous height to its new
+    // height. This catches both low step-ups and fast falls that cross a floor
+    // after horizontal movement in the same frame.
+    const landingGround = world.groundAt(
+      this.pos.x,
+      this.pos.z,
+      Math.max(startY, this.pos.y) + stepHeight
+    );
+    if (this.state.vy <= 0 && landingGround > -Infinity && this.pos.y <= landingGround) {
+      if (!this.state.grounded) this.state.justLanded = true;
+      this.pos.y = landingGround;
+      this.state.vy = 0;
+      this.state.grounded = true;
+      this.state.coyote = this.cfg.coyoteTime;
+      this.state.airJumps = 0;
+    } else if (this.state.grounded) {
+      // The old probe may have found ground before horizontal movement carried
+      // Bentley off its edge. Do not retain grounded state (or save a checkpoint)
+      // after that edge has been crossed.
+      this.state.grounded = false;
+    }
+
+    if (this.state.grounded) this.rememberSafeGround();
 
     this.events = {
       jumped: this.state.justJumped,
@@ -171,6 +217,15 @@ export class Player {
     } else {
       this.rig.body.rotation.x = this.state.pouncing > 0 ? -0.35 : damp(this.rig.body.rotation.x, 0, 10, dt);
     }
+  }
+
+  private rememberSafeGround(): void {
+    this.safeGround.remember(
+      this.pos.x,
+      this.pos.y,
+      this.pos.z,
+      Math.atan2(this.state.facingX, this.state.facingZ)
+    );
   }
 }
 

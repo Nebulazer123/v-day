@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
 import { World } from '../src/world';
 import type { LevelDef } from '../src/types';
 
@@ -24,5 +25,15 @@ describe('platform ground contact', () => {
     const world = new World(levelWithPlatform());
     expect(world.groundAt(0, 0, 0.2)).toBe(-Infinity);
     expect(world.groundAt(0, 0, 0.5)).toBeCloseTo(0.5);
+  });
+
+  it('does not treat a low step as a horizontal wall', () => {
+    const world = new World(levelWithPlatform());
+    const pos = new THREE.Vector3(0, 0, 0);
+
+    world.resolveWalls(pos, 0.34, 0.9, 0.5);
+
+    expect(pos.x).toBeCloseTo(0);
+    expect(pos.z).toBeCloseTo(0);
   });
 });

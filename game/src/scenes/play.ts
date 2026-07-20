@@ -507,7 +507,7 @@ export class PlayScene implements Scene {
       this.pearlsThisRun = 0;
       this.hearts = this.maxHearts;
       this.ctx.hud.setHearts(this.hearts, this.maxHearts);
-      this.respawn();
+      this.respawn(true);
     } else {
       // knockback
       this.player.state.vx *= -1.6;
@@ -515,8 +515,9 @@ export class PlayScene implements Scene {
     }
   }
 
-  protected respawn(): void {
-    this.player.spawnAt(this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, this.spawnYaw);
+  protected respawn(fromChapterStart = false): void {
+    if (fromChapterStart) this.player.spawnAt(this.spawnPos.x, this.spawnPos.y, this.spawnPos.z, this.spawnYaw);
+    else this.player.respawnAtSafeGround();
     this.ctx.camera.snapTo(this.player.pos);
   }
 
