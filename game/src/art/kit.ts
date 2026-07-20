@@ -52,42 +52,117 @@ export interface BentleyRig {
   legs: THREE.Object3D[];
 }
 
-/** Low-poly caramel dog with comically huge ears. ~1 unit tall at head. */
+/**
+ * Bentley — sculpted to match the real dog: red-fawn shepherd-mix coat with
+ * a darker saddle, cream chest blaze and paws, the grey-black muzzle going
+ * grizzled at the chin, amber eyes, a happy open-mouth smile with tongue,
+ * big upright splayed ears with dusky inner-ear, a long bushy cream-tipped
+ * tail, and his dark leather collar with the brass buckle and D-ring.
+ * Smooth organic overlapping-volume build; same rig anchors as the original
+ * blocky version so every animation, cosmetic, and camera framing holds.
+ */
 export function makeBentley(): BentleyRig {
   const group = new THREE.Group();
+  const fur = { flatShading: false, rim: 0.16 } as const;
+  const orb = (r: number, c: number, sx: number, sy: number, sz: number, x: number, y: number, z: number, parent: THREE.Object3D): THREE.Mesh => {
+    const m = sph(r, c, 14, fur);
+    m.scale.set(sx, sy, sz);
+    m.position.set(x, y, z);
+    parent.add(m);
+    return m;
+  };
 
   const body = new THREE.Group();
-  const torso = box(0.62, 0.42, 0.95, PAL.bentley);
-  torso.position.y = 0.42;
-  body.add(torso);
-  const chest = box(0.56, 0.34, 0.3, PAL.bentley);
-  chest.position.set(0, 0.38, 0.45);
-  body.add(chest);
 
+  // ---- torso: lean athletic barrel, deep chest sloping to the hips
+  orb(0.24, PAL.bentley, 0.92, 1.0, 1.25, 0, 0.56, 0.18, body);        // chest barrel
+  orb(0.21, PAL.bentley, 0.85, 0.9, 1.3, 0, 0.54, -0.08, body);        // ribcage → waist
+  orb(0.22, PAL.bentley, 0.9, 1.0, 1.05, 0, 0.52, -0.32, body);        // hindquarters
+  orb(0.2, PAL.bentleyEar, 0.84, 0.62, 1.55, 0, 0.66, -0.08, body);    // darker saddle wash on the back
+  orb(0.16, PAL.bentleyCream, 0.78, 0.7, 1.5, 0, 0.42, 0.04, body);    // cream underside
+  orb(0.11, PAL.bentleyCream, 0.72, 1.1, 0.5, 0, 0.48, 0.42, body);    // chest blaze
+
+  // ---- neck + collar
+  const neck = cyl(0.13, 0.18, 0.36, PAL.bentley, 12, fur);
+  neck.rotation.x = -0.5;
+  neck.position.set(0, 0.62, 0.4);
+  body.add(neck);
+  const collar = new THREE.Mesh(
+    new THREE.TorusGeometry(0.165, 0.034, 8, 20),
+    mat(PAL.collarLeather, { flatShading: false, gloss: 0.25, rim: 0.08 })
+  );
+  collar.rotation.x = Math.PI / 2 - 0.5;
+  collar.position.set(0, 0.61, 0.42);
+  body.add(collar);
+  const buckle = box(0.06, 0.045, 0.022, PAL.collarBrass, { gloss: 0.7, flatShading: false });
+  buckle.position.set(0.145, 0.63, 0.38);
+  buckle.rotation.z = 0.5;
+  body.add(buckle);
+  const dring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.032, 0.01, 6, 14),
+    mat(PAL.collarBrass, { gloss: 0.7, flatShading: false })
+  );
+  dring.position.set(0, 0.52, 0.5);
+  body.add(dring);
+
+  // ---- head (anchor unchanged: cosmetics + camera rely on it)
   const head = new THREE.Group();
   head.position.set(0, 0.72, 0.55);
-  const skull = box(0.46, 0.4, 0.42, PAL.bentley);
-  head.add(skull);
-  const muzzle = box(0.26, 0.2, 0.24, PAL.bentleyEar);
-  muzzle.position.set(0, -0.08, 0.3);
-  head.add(muzzle);
-  const nose = box(0.1, 0.08, 0.06, 0x221a14);
-  nose.position.set(0, -0.03, 0.44);
+  orb(0.2, PAL.bentley, 1.0, 0.92, 1.0, 0, 0.02, -0.02, head);         // skull
+  orb(0.165, PAL.bentley, 1.02, 0.62, 0.9, 0, 0.12, 0.02, head);       // domed brow (blended in)
+  orb(0.085, PAL.bentley, 1.0, 0.85, 0.9, 0.105, -0.06, 0.08, head);   // cheeks, tucked in
+  orb(0.085, PAL.bentley, 1.0, 0.85, 0.9, -0.105, -0.06, 0.08, head);
+  // muzzle: fawn bridge fading into the grey-black snout
+  orb(0.105, PAL.bentley, 1.05, 0.75, 1.0, 0, 0.03, 0.13, head);
+  const snout = cyl(0.075, 0.105, 0.24, PAL.bentleyMuzzle, 12, fur);
+  snout.rotation.x = Math.PI / 2 + 0.06;
+  snout.position.set(0, -0.015, 0.22, );
+  head.add(snout);
+  const nose = sph(0.05, 0x1c1a18, 12, { flatShading: false, gloss: 0.45, rim: 0.1 });
+  nose.scale.set(1.2, 0.85, 0.9);
+  nose.position.set(0, 0.015, 0.34);
   head.add(nose);
+  // open smiling jaw: dark lips, grizzled grey chin, pink tongue
+  orb(0.065, PAL.bentleyMuzzle, 1.05, 0.5, 1.15, 0, -0.09, 0.2, head);
+  orb(0.055, PAL.bentleyGrizzle, 1.15, 0.6, 0.95, 0, -0.125, 0.235, head);
+  const tongue = box(0.075, 0.016, 0.12, 0xe0839a, { flatShading: false, rim: 0.05 });
+  tongue.rotation.x = 0.24;
+  tongue.position.set(0, -0.068, 0.26, );
+  head.add(tongue);
+  // amber eyes with pupils inside dark rims
   for (const s of [-1, 1]) {
-    const eye = sph(0.045, 0x18120c, 8);
-    eye.position.set(0.12 * s, 0.08, 0.22);
-    head.add(eye);
+    const rimEye = sph(0.046, 0x2a2018, 12, fur);
+    rimEye.scale.set(1.05, 1.05, 0.5);
+    rimEye.position.set(0.1 * s, 0.065, 0.16);
+    head.add(rimEye);
+    const iris = sph(0.038, PAL.bentleyAmber, 12, { flatShading: false, gloss: 0.5, rim: 0.05 });
+    iris.position.set(0.1 * s, 0.065, 0.172);
+    head.add(iris);
+    const pupil = sph(0.018, 0x0c0a08, 8, { flatShading: false, gloss: 0.8 });
+    pupil.position.set(0.1 * s, 0.065, 0.203);
+    head.add(pupil);
   }
 
-  // THE EARS. Huge. Scooby-Doo stunt-double huge.
+  // THE EARS. Huge, upright, splayed — exactly like the photos.
   const mkEar = (side: number): THREE.Object3D => {
     const pivot = new THREE.Group();
-    pivot.position.set(0.2 * side, 0.18, -0.02);
-    const flap = box(0.1, 0.62, 0.3, PAL.bentleyEar);
-    flap.position.y = -0.28;
-    pivot.add(flap);
-    pivot.rotation.z = 0.5 * side;
+    pivot.position.set(0.15 * side, 0.14, -0.04);
+    // the run animation drives pivot.rotation.z = ±(0.5 + flap), a convention
+    // from the old hanging-flap ears — an inner tilt group compensates so the
+    // upright ears end up splayed OUTWARD ~0.3 rad like the real dog's
+    const tilt = new THREE.Group();
+    tilt.rotation.z = -0.8 * side;
+    pivot.add(tilt);
+    const shell = new THREE.Mesh(new THREE.ConeGeometry(0.105, 0.44, 12), mat(PAL.bentleyEar, fur));
+    shell.castShadow = true;
+    shell.scale.z = 0.5;
+    shell.position.y = 0.21;
+    tilt.add(shell);
+    // inner ear: a flattened plate on the front face, tip kept below the shell's
+    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.062, 0.26, 10), mat(PAL.bentleyInnerEar, fur));
+    inner.scale.z = 0.28;
+    inner.position.set(0, 0.14, 0.042);
+    tilt.add(inner);
     head.add(pivot);
     return pivot;
   };
@@ -95,22 +170,36 @@ export function makeBentley(): BentleyRig {
   const earR = mkEar(-1);
   body.add(head);
 
+  // ---- legs: long jointed shepherd legs with cream paws (pivots unchanged)
   const legs: THREE.Object3D[] = [];
-  for (const [x, z] of [[-0.22, 0.32], [0.22, 0.32], [-0.22, -0.34], [0.22, -0.34]] as const) {
+  for (const [x, z] of [[-0.15, 0.26], [0.15, 0.26], [-0.16, -0.32], [0.16, -0.32]] as const) {
+    const hind = z < 0;
     const leg = new THREE.Group();
-    leg.position.set(x, 0.24, z);
-    const bone = box(0.14, 0.34, 0.16, PAL.bentley);
-    bone.position.y = -0.14;
-    leg.add(bone);
+    leg.position.set(x, 0.42, z);
+    if (hind) orb(0.11, PAL.bentley, 0.62, 1.3, 1.0, 0, -0.02, -0.02, leg); // thigh mass
+    const upper = cyl(0.055, 0.068, 0.26, PAL.bentley, 10, fur);
+    upper.position.y = -0.12;
+    leg.add(upper);
+    const lower = cyl(0.042, 0.052, 0.22, PAL.bentley, 10, fur);
+    lower.position.y = -0.32;
+    leg.add(lower);
+    const paw = sph(0.058, PAL.bentleyCream, 10, fur);
+    paw.scale.set(1.0, 0.55, 1.3);
+    paw.position.set(0, -0.42, 0.025);
+    leg.add(paw);
     body.add(leg);
     legs.push(leg);
   }
 
+  // ---- long bushy tail, darker on top, cream tip (pivot unchanged)
   const tail = new THREE.Group();
   tail.position.set(0, 0.55, -0.48);
-  const tailBone = box(0.09, 0.09, 0.34, PAL.bentleyEar);
-  tailBone.position.z = -0.15;
-  tail.add(tailBone);
+  const tailBase = cyl(0.045, 0.06, 0.22, PAL.bentley, 10, fur);
+  tailBase.rotation.x = Math.PI / 2;
+  tailBase.position.z = -0.1;
+  tail.add(tailBase);
+  orb(0.062, PAL.bentleyEar, 0.85, 0.85, 1.9, 0, 0, -0.24, tail);      // bushy middle, overlaps base
+  orb(0.042, PAL.bentleyCream, 0.9, 0.9, 1.5, 0, -0.005, -0.4, tail);  // cream tip, overlaps middle
   tail.rotation.x = -0.7;
   body.add(tail);
 

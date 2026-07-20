@@ -16,8 +16,15 @@ export const PAL = {
   // characters & hero objects
   victoryRed: 0xd42a2a,    // THE car. canon-locked.
   taillight: 0xff2222,     // Morimoto glow
-  bentley: 0xd9a05b,       // caramel fur
-  bentleyEar: 0xb37f41,    // ear/muzzle darker fur
+  bentley: 0xc9884a,       // red-fawn coat (matched to the real Bentley)
+  bentleyEar: 0xa96f38,    // darker fur: ear backs, saddle, tail top
+  bentleyCream: 0xe6c795,  // chest blaze, underside, paws, tail tip
+  bentleyMuzzle: 0x4c4a45, // the grey-black muzzle
+  bentleyGrizzle: 0x9a9289,// grizzled grey chin (distinguished gentleman)
+  bentleyInnerEar: 0xb08a77,// dusky pink inner ear
+  bentleyAmber: 0xa3611f,  // his amber eyes
+  collarLeather: 0x33241a, // dark leather collar
+  collarBrass: 0xc9a24a,   // brass buckle + D-ring
   duck: 0xffd23f,          // THE DUCKS
   duckBill: 0xff8c42,
 

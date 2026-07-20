@@ -194,8 +194,10 @@ export class Player {
     if (this.state.justLanded) this.squash = 1;
     if (this.state.justJumped || this.state.justPounced) this.squash = -0.7;
     this.squash = damp(this.squash, 0, 9, dt);
-    const sy = 1 - this.squash * 0.25;
-    const sxz = 1 + this.squash * 0.18;
+    // idle breathing layered under squash & stretch
+    const breathe = this.state.grounded ? Math.sin(this.t * 2.4) * 0.012 : 0;
+    const sy = (1 - this.squash * 0.25) * (1 + breathe);
+    const sxz = (1 + this.squash * 0.18) * (1 - breathe * 0.5);
     this.rig.body.scale.set(sxz, sy, sxz);
 
     // run gait: legs scissor, ears flop with vertical velocity + gait
@@ -210,7 +212,11 @@ export class Player {
     this.rig.earR.rotation.z = -0.5 - earFlap;
     this.rig.earL.rotation.x = this.state.grounded ? 0 : -0.6;
     this.rig.earR.rotation.x = this.state.grounded ? 0 : -0.6;
+    // head bobs with the gait, dips slightly when sprinting
+    this.rig.head.rotation.x = Math.sin(cycle * 0.5) * 0.06 * gait + gait * 0.08;
+    // happy tail: always wagging, harder when running (side-to-side + lift)
     this.rig.tail.rotation.x = -0.7 + Math.sin(this.t * 8) * 0.25 * (0.4 + gait);
+    this.rig.tail.rotation.y = Math.sin(this.t * 9.5) * (0.22 + 0.2 * gait);
     // pounce: lean forward. double jump: a quick comedic front-flip.
     if (this.airSpinT !== null) {
       this.rig.body.rotation.x = (this.airSpinT / this.airSpinDuration) * Math.PI * 2;
